@@ -3,5 +3,8 @@
     "api/index.py": {
       "maxDuration": 300
     }
+  },
+  "limits": {
+    "bodySize": "50mb"
   }
 }
