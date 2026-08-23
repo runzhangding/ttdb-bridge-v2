@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
-from typing import List
 import os
 import uuid
 import requests
@@ -9,7 +8,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.5.2",
+    version="0.5.3",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -43,7 +42,7 @@ def home():
     return {
         "status": "ok",
         "service": "天天爆单 Bridge",
-        "version": "0.5.2",
+        "version": "0.5.3",
         "docs": "/docs"
     }
 
@@ -71,8 +70,7 @@ def debug_env():
 
     return {
 
-        "supabase_url":
-            SUPABASE_URL,
+        "supabase_url": SUPABASE_URL,
 
         "service_key_exists":
             bool(SUPABASE_SERVICE_KEY),
@@ -95,9 +93,11 @@ def create_upload():
 
     return {
 
-        "status": "success",
+        "status":
+            "success",
 
-        "batch_id": batch_id,
+        "batch_id":
+            batch_id,
 
         "created_at":
             datetime.utcnow().isoformat()
@@ -107,16 +107,16 @@ def create_upload():
 
 
 # =========================
-# 上传 HAR 文件
-# 支持多个文件
+# 上传 HAR
+# 单文件测试版
 # =========================
 
 @app.post("/v1/upload/har")
 async def upload_har(
 
-    files: List[UploadFile] = File(
+    file: UploadFile = File(
         ...,
-        description="上传TikTok Shop HAR文件，可同时多个"
+        description="上传TikTok Shop HAR文件"
     )
 
 ):
@@ -141,7 +141,35 @@ async def upload_har(
     batch_id = str(uuid.uuid4())
 
 
-    results = []
+    content = await file.read()
+
+
+    path = (
+        batch_id
+        +
+        "/"
+        +
+        file.filename
+    )
+
+
+    upload_url = (
+
+        SUPABASE_URL
+
+        +
+        "/storage/v1/object/"
+
+        +
+        BUCKET_NAME
+
+        +
+        "/"
+
+        +
+        path
+
+    )
 
 
     headers = {
@@ -158,134 +186,73 @@ async def upload_har(
     }
 
 
+    response = requests.post(
 
-    for file in files:
+        upload_url,
 
+        headers=headers,
 
-        content = await file.read()
+        data=content,
 
+        timeout=300
 
-        path = (
-            batch_id
-            +
-            "/"
-            +
-            file.filename
-        )
+    )
 
 
-        upload_url = (
-
-            SUPABASE_URL
-
-            +
-            "/storage/v1/object/"
-
-            +
-            BUCKET_NAME
-
-            +
-            "/"
-
-            +
-            path
-
-        )
+    if response.status_code not in [200,201]:
 
 
-        response = requests.post(
+        raise HTTPException(
 
-            upload_url,
+            status_code=500,
 
-            headers=headers,
-
-            data=content,
-
-            timeout=300
-
-        )
-
-
-        if response.status_code not in [200,201]:
-
-            results.append({
-
-                "filename":
-                    file.filename,
-
-                "status":
-                    "failed",
-
-                "detail":
-                    response.text
-
-            })
-
-            continue
-
-
-
-        public_url = (
-
-            SUPABASE_URL
-
-            +
-            "/storage/v1/object/public/"
-
-            +
-            BUCKET_NAME
-
-            +
-            "/"
-
-            +
-            path
+            detail=response.text
 
         )
 
 
 
-        results.append({
+    public_url = (
 
-            "filename":
-                file.filename,
+        SUPABASE_URL
 
-            "status":
-                "success",
+        +
+        "/storage/v1/object/public/"
 
-            "path":
-                path,
+        +
+        BUCKET_NAME
 
-            "public_url":
-                public_url,
+        +
+        "/"
 
-            "size":
-                len(content)
+        +
+        path
 
-        })
-
+    )
 
 
     return {
 
-
         "status":
             "success",
-
 
         "batch_id":
             batch_id,
 
+        "filename":
+            file.filename,
 
-        "files":
-            results
+        "path":
+            path,
+
+        "public_url":
+            public_url,
+
+        "size":
+            len(content)
 
     }
-
-
-
-
-# =========================
+    # =========================
 # HAR读取测试
 # =========================
 
@@ -345,6 +312,7 @@ def read_har(
 
 
 
+
 # =========================
 # public url测试
 # =========================
@@ -363,8 +331,11 @@ def public_url(
     if not SUPABASE_URL:
 
         raise HTTPException(
+
             status_code=500,
+
             detail="SUPABASE_URL missing"
+
         )
 
 
@@ -373,15 +344,19 @@ def public_url(
         SUPABASE_URL
 
         +
+
         "/storage/v1/object/public/"
 
         +
+
         BUCKET_NAME
 
         +
+
         "/"
 
         +
+
         data.path
 
     )
@@ -390,9 +365,12 @@ def public_url(
     return {
 
         "status":
+
             "success",
 
+
         "public_url":
+
             url
 
     }
