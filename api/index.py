@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import uuid
-import requests
+from supabase import create_client
 
 
 app = FastAPI(
@@ -29,6 +29,16 @@ SUPABASE_SERVICE_KEY = os.environ.get(
 )
 
 BUCKET_NAME = "har-files"
+
+
+supabase = None
+
+if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+
+    supabase = create_client(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_KEY
+    )
 
 
 
@@ -174,9 +184,41 @@ def read_har(
 
     try:
 
-        response = requests.get(
-            data.url,
-            timeout=20
+
+        if not supabase:
+
+            raise Exception(
+                "Supabase client not initialized"
+            )
+
+
+        url = data.url
+
+
+        # 提取storage路径
+
+        if "/har-files/" not in url:
+
+            raise Exception(
+                "Invalid HAR public url"
+            )
+
+
+        path = url.split(
+            "/har-files/"
+        )[1]
+
+
+        # 使用service key读取
+
+        file_bytes = (
+
+            supabase.storage
+
+            .from_(BUCKET_NAME)
+
+            .download(path)
+
         )
 
 
@@ -186,22 +228,14 @@ def read_har(
             "status":"success",
 
 
-            "http_status":
-                response.status_code,
-
-
             "content_length":
-                len(response.content),
 
-
-            "content_type":
-                response.headers.get(
-                    "content-type"
-                ),
+                len(file_bytes),
 
 
             "message":
-                "HAR download success"
+
+                "HAR download success via Supabase SDK"
 
         }
 
@@ -216,9 +250,11 @@ def read_har(
 
 
             "detail":
+
                 str(e)
 
         }
+
 
 
 
@@ -275,6 +311,7 @@ def public_url(
         "status":"success",
 
         "public_url":
+
             url
 
     }
