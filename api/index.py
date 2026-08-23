@@ -2,8 +2,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import os
 import uuid
-import json
-import requests
 from datetime import datetime
 
 from supabase import create_client
@@ -11,7 +9,7 @@ from supabase import create_client
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.5.0",
+    version="0.4.1",
     description="TikTok Shop销量监控系统"
 )
 
@@ -28,7 +26,6 @@ BUCKET_NAME = "har-files"
 
 supabase = None
 
-
 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
     supabase = create_client(
         SUPABASE_URL,
@@ -41,13 +38,12 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 # 基础接口
 # =========================
 
-
 @app.get("/")
 def home():
 
     return {
-        "status":"ok",
-        "message":"天天爆单 Bridge running"
+        "status": "ok",
+        "message": "天天爆单 Bridge running"
     }
 
 
@@ -56,15 +52,14 @@ def home():
 def health():
 
     return {
-        "status":"healthy"
+        "status": "healthy"
     }
 
 
 
 # =========================
-# 创建上传任务
+# 创建上传批次
 # =========================
-
 
 @app.post("/v1/upload/create")
 def create_upload():
@@ -73,14 +68,10 @@ def create_upload():
 
     return {
 
-        "status":"success",
-
-        "batch_id":batch_id,
-
-        "bucket":BUCKET_NAME,
-
-        "created_at":
-            datetime.utcnow().isoformat()
+        "status": "success",
+        "batch_id": batch_id,
+        "bucket": BUCKET_NAME,
+        "created_at": datetime.utcnow().isoformat()
 
     }
 
@@ -90,19 +81,15 @@ def create_upload():
 # 生成文件路径
 # =========================
 
-
 class PathRequest(BaseModel):
 
-    batch_id:str
-
-    filename:str
+    batch_id: str
+    filename: str
 
 
 
 @app.post("/v1/upload/path")
-def upload_path(
-    data:PathRequest
-):
+def upload_path(data: PathRequest):
 
     path = (
         datetime.utcnow().strftime("%Y%m%d")
@@ -119,25 +106,27 @@ def upload_path(
 
     return {
 
-        "status":"success",
-
-        "path":path,
-
-        "bucket":BUCKET_NAME
+        "status": "success",
+        "path": path,
+        "bucket": BUCKET_NAME
 
     }
 
 
 
 # =========================
-# 生成公开URL
+# 生成公共URL
 # =========================
+
+class PublicURLRequest(BaseModel):
+
+    batch_id: str
+    filename: str
+
 
 
 @app.post("/v1/upload/public-url")
-def public_url(
-    data:PathRequest
-):
+def public_url(data: PublicURLRequest):
 
 
     path = (
@@ -154,111 +143,79 @@ def public_url(
 
 
     url = (
-
         SUPABASE_URL
-
         +
         "/storage/v1/object/public/"
-
         +
         BUCKET_NAME
-
         +
         "/"
-
         +
         path
-
     )
 
 
     return {
 
-        "status":"success",
-
-        "path":path,
-
-        "public_url":url
+        "status": "success",
+        "path": path,
+        "public_url": url
 
     }
 
 
 
-
 # =========================
-# 新增：
-# HAR读取测试
+# 调试读取HAR
 # =========================
 
+class ReadHARRequest(BaseModel):
 
-class ReadHarRequest(BaseModel):
-
-    url:str
+    url: str
 
 
 
 @app.post("/v1/debug/read-har")
-def read_har(
-    data:ReadHarRequest
-):
+def read_har(data: ReadHARRequest):
+
+
+    if not supabase:
+
+        raise HTTPException(
+            status_code=500,
+            detail="Supabase not configured"
+        )
 
 
     try:
 
+        # 从public_url里面提取storage路径
 
-        response = requests.get(
-            data.url,
-            timeout=60
+        path = data.url.split(
+            "/har-files/"
+        )[1]
+
+
+        # 使用Supabase SDK读取
+        content = (
+            supabase
+            .storage
+            .from_(BUCKET_NAME)
+            .download(path)
         )
-
-
-        if response.status_code != 200:
-
-            raise HTTPException(
-
-                status_code=400,
-
-                detail="HAR download failed"
-
-            )
-
-
-        content = response.content
-
-
-        size = len(content)
-
-
-        har = json.loads(
-            content.decode(
-                "utf-8",
-                errors="ignore"
-            )
-        )
-
-
-        entries = 0
-
-
-        if "log" in har:
-
-            entries = len(
-                har["log"].get(
-                    "entries",
-                    []
-                )
-            )
 
 
         return {
 
+            "status": "success",
 
-            "status":"success",
+            "size": len(content),
 
-            "size":size,
-
-            "entries":entries
-
+            "start": content[:300]
+            .decode(
+                "utf-8",
+                errors="ignore"
+            )
 
         }
 
