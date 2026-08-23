@@ -1,8 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
+from datetime import datetime
 import os
 import uuid
-from datetime import datetime
 
 from supabase import create_client
 
@@ -15,7 +15,7 @@ app = FastAPI(
 
 
 # =========================
-# Supabase配置
+# Supabase 配置
 # =========================
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -26,37 +26,30 @@ BUCKET_NAME = "har-files"
 
 supabase = None
 
-
 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
-
     supabase = create_client(
         SUPABASE_URL,
         SUPABASE_SERVICE_KEY
     )
 
 
-
 # =========================
-# 基础测试
+# 基础接口
 # =========================
 
 @app.get("/")
 def home():
-
     return {
         "status": "ok",
-        "message": "天天爆单 Bridge running"
+        "service": "天天爆单 Bridge"
     }
-
 
 
 @app.get("/health")
 def health():
-
     return {
         "status": "healthy"
     }
-
 
 
 # =========================
@@ -68,199 +61,181 @@ def create_upload():
 
     batch_id = str(uuid.uuid4())
 
+    return {
+        "status": "success",
+        "batch_id": batch_id,
+        "bucket": BUCKET_NAME,
+        "created_at": datetime.utcnow().isoformat()
+    }
+
+
+
+# =========================
+# 上传HAR文件
+# =========================
+
+@app.post("/v1/upload/har")
+async def upload_har(
+    files: list[UploadFile] = File(...)
+):
+
+    if supabase is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Supabase not configured"
+        )
+
+
+    batch_id = str(uuid.uuid4())
+
+    uploaded = []
+
+
+    for file in files:
+
+        content = await file.read()
+
+        path = (
+            datetime.utcnow().strftime("%Y%m%d")
+            + "/"
+            + batch_id
+            + "/"
+            + file.filename
+        )
+
+
+        supabase.storage.from_(BUCKET_NAME).upload(
+            path,
+            content
+        )
+
+
+        uploaded.append(
+            {
+                "filename": file.filename,
+                "path": path
+            }
+        )
+
 
     return {
 
-        "status": "success",
+        "status":"success",
 
-        "batch_id": batch_id,
+        "batch_id":batch_id,
 
-        "bucket": BUCKET_NAME,
-
-        "created_at": datetime.utcnow().isoformat()
+        "files":uploaded
 
     }
 
 
 
 # =========================
-# 生成文件路径
+# 获取文件路径
 # =========================
 
 class PathRequest(BaseModel):
 
-    batch_id: str
+    batch_id:str
 
-    filename: str
+    filename:str
 
 
 
 @app.post("/v1/upload/path")
-def upload_path(data: PathRequest):
-
+def upload_path(data:PathRequest):
 
     path = (
-
         datetime.utcnow().strftime("%Y%m%d")
-
         + "/"
-
         + data.batch_id
-
         + "/"
-
         + data.filename
-
     )
 
 
     return {
 
-        "status": "success",
+        "status":"success",
 
-        "path": path,
+        "path":path,
 
-        "bucket": BUCKET_NAME
+        "bucket":BUCKET_NAME
 
     }
 
 
 
 # =========================
-# 生成公共URL
+# 获取public_url
 # =========================
 
 class PublicURLRequest(BaseModel):
 
-    batch_id: str
+    batch_id:str
 
-    filename: str
+    filename:str
 
 
 
 @app.post("/v1/upload/public-url")
-def public_url(data: PublicURLRequest):
+def public_url(data:PublicURLRequest):
 
 
     path = (
-
         datetime.utcnow().strftime("%Y%m%d")
-
         + "/"
-
         + data.batch_id
-
         + "/"
-
         + data.filename
-
     )
 
 
     url = (
-
         SUPABASE_URL
-
-        + "/storage/v1/object/public/"
-
-        + BUCKET_NAME
-
-        + "/"
-
-        + path
-
+        +
+        "/storage/v1/object/public/"
+        +
+        BUCKET_NAME
+        +
+        "/"
+        +
+        path
     )
 
 
     return {
 
-        "status": "success",
+        "status":"success",
 
-        "path": path,
+        "path":path,
 
-        "public_url": url
+        "public_url":url
 
     }
 
 
 
 # =========================
-# HAR读取测试
+# Debug读取HAR测试
 # =========================
 
 class ReadHARRequest(BaseModel):
 
-    url: str
+    url:str
 
 
 
 @app.post("/v1/debug/read-har")
-def read_har(data: ReadHARRequest):
+def read_har(data:ReadHARRequest):
 
 
-    if not supabase:
+    return {
 
-        raise HTTPException(
+        "status":"success",
 
-            status_code=500,
+        "url":data.url,
 
-            detail="Supabase not configured"
+        "message":"public_url received"
 
-        )
-
-
-    try:
-
-
-        # 从public_url提取Storage路径
-
-        path = data.url.split(
-            "/har-files/"
-        )[1]
-
-
-
-        # 创建临时访问链接
-
-        signed = (
-
-            supabase
-
-            .storage
-
-            .from_(BUCKET_NAME)
-
-            .create_signed_url(
-
-                path,
-
-                60
-
-            )
-
-        )
-
-
-
-        return {
-
-            "status": "success",
-
-            "path": path,
-
-            "signed_url": signed
-
-        }
-
-
-
-    except Exception as e:
-
-
-        raise HTTPException(
-
-            status_code=500,
-
-            detail=str(e)
-
-        )
+    }
