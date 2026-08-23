@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
+from typing import List
 import os
 import uuid
 import requests
@@ -17,7 +18,7 @@ app = FastAPI(
 
 
 # =========================
-# Supabase 配置
+# Supabase配置
 # =========================
 
 SUPABASE_URL = os.environ.get(
@@ -74,14 +75,13 @@ def health():
 
 @app.get(
     "/debug/env",
-    summary="检查环境变量"
+    summary="Check environment"
 )
 def debug_env():
 
     return {
 
-        "supabase_url":
-            SUPABASE_URL,
+        "supabase_url": SUPABASE_URL,
 
         "service_key_exists":
             bool(SUPABASE_SERVICE_KEY),
@@ -99,14 +99,13 @@ def debug_env():
 
 @app.post(
     "/v1/upload/create",
-    summary="创建上传批次"
+    summary="Create upload batch"
 )
 def create_upload():
 
     batch_id = str(
         uuid.uuid4()
     )
-
 
     return {
 
@@ -127,14 +126,11 @@ def create_upload():
 
 @app.post(
     "/v1/upload/har",
-    summary="上传HAR文件",
-    description="上传TikTok Shop HAR文件并保存到Supabase Storage"
+    summary="Upload HAR files",
+    description="Upload TikTok Shop HAR files"
 )
 async def upload_har(
-    files: list[UploadFile] = File(
-        ...,
-        description="HAR文件列表"
-    )
+    files: List[UploadFile] = File(...)
 ):
 
     if not SUPABASE_URL:
@@ -167,13 +163,14 @@ async def upload_har(
     }
 
 
+
     for file in files:
 
 
         content = await file.read()
 
 
-        filename = (
+        path = (
 
             datetime.utcnow()
             .strftime("%Y%m%d")
@@ -215,7 +212,7 @@ async def upload_har(
 
             +
 
-            filename
+            path
 
         )
 
@@ -273,7 +270,7 @@ async def upload_har(
 
             +
 
-            filename
+            path
 
         )
 
@@ -290,7 +287,7 @@ async def upload_har(
                 len(content),
 
             "path":
-                filename,
+                path,
 
             "public_url":
                 public_url
@@ -323,7 +320,7 @@ class ReadHARRequest(BaseModel):
 
 @app.post(
     "/v1/debug/read-har",
-    summary="读取HAR测试"
+    summary="Read HAR"
 )
 def read_har(
     data: ReadHARRequest
@@ -379,7 +376,7 @@ def read_har(
 
 
 # =========================
-# 生成public url测试
+# 生成public url
 # =========================
 
 class PublicURLRequest(BaseModel):
@@ -390,7 +387,7 @@ class PublicURLRequest(BaseModel):
 
 @app.post(
     "/v1/upload/public-url",
-    summary="生成公开URL"
+    summary="Create public url"
 )
 def public_url(
     data: PublicURLRequest
