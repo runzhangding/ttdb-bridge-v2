@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
-from typing import List
 import os
 import uuid
 import requests
@@ -121,17 +120,18 @@ def create_upload():
 
 
 # =========================
-# 上传HAR文件
+# 上传单个HAR文件
 # =========================
 
 @app.post(
     "/v1/upload/har",
-    summary="Upload HAR files",
-    description="Upload TikTok Shop HAR files"
+    summary="Upload HAR file",
+    description="Upload TikTok Shop HAR file"
 )
 async def upload_har(
-    files: List[UploadFile] = File(...)
+    file: UploadFile = File(...)
 ):
+
 
     if not SUPABASE_URL:
 
@@ -149,7 +149,58 @@ async def upload_har(
         )
 
 
-    result = []
+
+    content = await file.read()
+
+
+
+    path = (
+
+        datetime.utcnow()
+        .strftime("%Y%m%d")
+
+        +
+
+        "/"
+
+        +
+
+        str(uuid.uuid4())
+
+        +
+
+        "_"
+
+        +
+
+        file.filename
+
+    )
+
+
+
+    upload_url = (
+
+        SUPABASE_URL
+
+        +
+
+        "/storage/v1/object/"
+
+        +
+
+        BUCKET_NAME
+
+        +
+
+        "/"
+
+        +
+
+        path
+
+    )
+
 
 
     headers = {
@@ -164,144 +215,75 @@ async def upload_har(
 
 
 
-    for file in files:
+    response = requests.post(
 
+        upload_url,
 
-        content = await file.read()
+        headers=headers,
 
+        data=content,
 
-        path = (
+        timeout=60
 
-            datetime.utcnow()
-            .strftime("%Y%m%d")
-
-            +
-
-            "/"
-
-            +
-
-            str(uuid.uuid4())
-
-            +
-
-            "_"
-
-            +
-
-            file.filename
-
-        )
-
-
-        upload_url = (
-
-            SUPABASE_URL
-
-            +
-
-            "/storage/v1/object/"
-
-            +
-
-            BUCKET_NAME
-
-            +
-
-            "/"
-
-            +
-
-            path
-
-        )
-
-
-        response = requests.post(
-
-            upload_url,
-
-            headers=headers,
-
-            data=content,
-
-            timeout=60
-
-        )
-
-
-        if response.status_code not in [
-            200,
-            201
-        ]:
-
-            result.append({
-
-                "filename":
-                    file.filename,
-
-                "status":
-                    "failed",
-
-                "detail":
-                    response.text
-
-            })
-
-            continue
+    )
 
 
 
-        public_url = (
+    if response.status_code not in [
+        200,
+        201
+    ]:
 
-            SUPABASE_URL
+        return {
 
-            +
+            "status": "failed",
 
-            "/storage/v1/object/public/"
+            "detail":
+                response.text
 
-            +
-
-            BUCKET_NAME
-
-            +
-
-            "/"
-
-            +
-
-            path
-
-        )
+        }
 
 
-        result.append({
 
-            "filename":
-                file.filename,
+    public_url = (
 
-            "status":
-                "success",
+        SUPABASE_URL
 
-            "size":
-                len(content),
+        +
 
-            "path":
-                path,
+        "/storage/v1/object/public/"
 
-            "public_url":
-                public_url
+        +
 
-        })
+        BUCKET_NAME
+
+        +
+
+        "/"
+
+        +
+
+        path
+
+    )
+
 
 
     return {
 
-        "status":
-            "success",
+        "status": "success",
 
-        "files":
-            result
+        "filename":
+            file.filename,
+
+        "size":
+            len(content),
+
+        "path":
+            path,
+
+        "public_url":
+            public_url
 
     }
 
@@ -376,7 +358,7 @@ def read_har(
 
 
 # =========================
-# 生成public url
+# 生成public url测试
 # =========================
 
 class PublicURLRequest(BaseModel):
@@ -387,7 +369,7 @@ class PublicURLRequest(BaseModel):
 
 @app.post(
     "/v1/upload/public-url",
-    summary="Create public url"
+    summary="Create public URL"
 )
 def public_url(
     data: PublicURLRequest
