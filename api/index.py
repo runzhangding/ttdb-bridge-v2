@@ -383,6 +383,72 @@ class ParseHARRequest(BaseModel):
 def parse_har(
     data: ParseHARRequest
 ):
+
+    try:
+
+        import json
+        import os
+        from supabase import create_client
+
+
+        supabase = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ["SUPABASE_SERVICE_KEY"]
+        )
+
+
+        # 从URL里面提取storage路径
+
+        path = data.url.split(
+            "/har-files/"
+        )[1]
+
+
+        file_data = supabase.storage \
+            .from_("har-files") \
+            .download(path)
+
+
+        har_text = file_data.decode(
+            "utf-8"
+        )
+
+
+        har = json.loads(
+            har_text
+        )
+
+
+        entries = (
+            har
+            .get("log", {})
+            .get("entries", [])
+        )
+
+
+        return {
+
+            "status": "success",
+
+            "entries": len(entries),
+
+            "size": len(file_data),
+
+            "message": "HAR读取成功"
+
+        }
+
+
+    except Exception as e:
+
+
+        return {
+
+            "status": "error",
+
+            "detail": str(e)
+
+        }
     try:
 
         import json
