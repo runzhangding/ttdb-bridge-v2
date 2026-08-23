@@ -404,9 +404,36 @@ def parse_har(
         )[1]
 
 
-        file_data = supabase.storage \
-            .from_("har-files") \
-            .download(path)
+        import requests
+
+
+storage_url = (
+    os.environ["SUPABASE_URL"]
+    + "/storage/v1/object/"
+    + "har-files/"
+    + path
+)
+
+
+file_response = requests.get(
+    storage_url,
+    headers={
+        "Authorization":
+        "Bearer " + os.environ["SUPABASE_SERVICE_KEY"]
+    },
+    timeout=60
+)
+
+
+if file_response.status_code != 200:
+
+    return {
+        "status":"error",
+        "detail":file_response.text
+    }
+
+
+file_data = file_response.content
 
 
         har_text = file_data.decode(
