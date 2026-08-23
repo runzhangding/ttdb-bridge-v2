@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import uuid
-from supabase import create_client
+import requests
 
 
 app = FastAPI(
@@ -29,16 +29,6 @@ SUPABASE_SERVICE_KEY = os.environ.get(
 )
 
 BUCKET_NAME = "har-files"
-
-
-supabase = None
-
-if SUPABASE_URL and SUPABASE_SERVICE_KEY:
-
-    supabase = create_client(
-        SUPABASE_URL,
-        SUPABASE_SERVICE_KEY
-    )
 
 
 
@@ -148,9 +138,12 @@ async def upload_har(
         result.append({
 
             "filename":
+
                 file.filename,
 
+
             "size":
+
                 len(content)
 
         })
@@ -185,17 +178,22 @@ def read_har(
     try:
 
 
-        if not supabase:
+        if not SUPABASE_URL:
 
             raise Exception(
-                "Supabase client not initialized"
+                "SUPABASE_URL missing"
+            )
+
+
+        if not SUPABASE_SERVICE_KEY:
+
+            raise Exception(
+                "SUPABASE_SERVICE_KEY missing"
             )
 
 
         url = data.url
 
-
-        # 提取storage路径
 
         if "/har-files/" not in url:
 
@@ -204,22 +202,75 @@ def read_har(
             )
 
 
+        # 提取文件路径
+
         path = url.split(
             "/har-files/"
         )[1]
 
 
-        # 使用service key读取
+        # Supabase Storage REST地址
 
-        file_bytes = (
+        storage_url = (
 
-            supabase.storage
+            SUPABASE_URL
 
-            .from_(BUCKET_NAME)
+            +
 
-            .download(path)
+            "/storage/v1/object/"
+
+            +
+
+            BUCKET_NAME
+
+            +
+
+            "/"
+
+            +
+
+            path
 
         )
+
+
+        headers = {
+
+            "Authorization":
+
+                "Bearer "
+
+                +
+
+                SUPABASE_SERVICE_KEY,
+
+
+            "apikey":
+
+                SUPABASE_SERVICE_KEY
+
+        }
+
+
+
+        response = requests.get(
+
+            storage_url,
+
+            headers=headers,
+
+            timeout=30
+
+        )
+
+
+        if response.status_code != 200:
+
+            raise Exception(
+
+                response.text
+
+            )
 
 
         return {
@@ -230,14 +281,22 @@ def read_har(
 
             "content_length":
 
-                len(file_bytes),
+                len(response.content),
+
+
+            "content_type":
+
+                response.headers.get(
+                    "content-type"
+                ),
 
 
             "message":
 
-                "HAR download success via Supabase SDK"
+                "HAR download success"
 
         }
+
 
 
     except Exception as e:
@@ -254,6 +313,7 @@ def read_har(
                 str(e)
 
         }
+
 
 
 
@@ -309,6 +369,7 @@ def public_url(
 
 
         "status":"success",
+
 
         "public_url":
 
