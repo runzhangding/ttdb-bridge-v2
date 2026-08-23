@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -8,7 +8,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.4.7",
+    version="0.4.8",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -20,9 +20,7 @@ app = FastAPI(
 # Supabase配置
 # =========================
 
-SUPABASE_URL = os.environ.get(
-    "SUPABASE_URL"
-)
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
 
 SUPABASE_SERVICE_KEY = os.environ.get(
     "SUPABASE_SERVICE_KEY"
@@ -40,15 +38,10 @@ BUCKET_NAME = "har-files"
 def home():
 
     return {
-
-        "status": "ok",
-
-        "service": "天天爆单 Bridge",
-
-        "version": "0.4.7",
-
-        "docs": "/docs"
-
+        "status":"ok",
+        "service":"天天爆单 Bridge",
+        "version":"0.4.8",
+        "docs":"/docs"
     }
 
 
@@ -61,9 +54,7 @@ def home():
 def health():
 
     return {
-
-        "status": "healthy"
-
+        "status":"healthy"
     }
 
 
@@ -78,15 +69,12 @@ def debug_env():
     return {
 
         "supabase_url":
-
             SUPABASE_URL,
 
         "service_key_exists":
-
             bool(SUPABASE_SERVICE_KEY),
 
         "bucket":
-
             BUCKET_NAME
 
     }
@@ -102,12 +90,11 @@ def create_upload():
 
     batch_id = str(uuid.uuid4())
 
-
     return {
 
-        "status": "success",
+        "status":"success",
 
-        "batch_id": batch_id,
+        "batch_id":batch_id,
 
         "created_at":
             datetime.utcnow().isoformat()
@@ -117,24 +104,15 @@ def create_upload():
 
 
 # =========================
-# 获取Supabase上传地址
+# 上传 HAR 到 Supabase
 # =========================
 
-class SignRequest(BaseModel):
-
-    batch_id: str
-
-    filename: str
-
-
-
-@app.post("/v1/upload/sign")
-def create_upload_sign(
-    data: SignRequest
+@app.post("/v1/upload/har")
+async def upload_har(
+    files:list[UploadFile]=File(...)
 ):
 
     if not SUPABASE_URL:
-
         raise HTTPException(
             500,
             "SUPABASE_URL missing"
@@ -142,114 +120,158 @@ def create_upload_sign(
 
 
     if not SUPABASE_SERVICE_KEY:
-
         raise HTTPException(
             500,
             "SUPABASE_SERVICE_KEY missing"
         )
 
 
-    path = (
-        data.batch_id
-        +
-        "/"
-        +
-        data.filename
-    )
+    batch_id = str(uuid.uuid4())
 
 
-    url = (
-
-        SUPABASE_URL
-
-        +
-
-        "/storage/v1/object/"
-
-        +
-
-        BUCKET_NAME
-
-        +
-
-        "/"
-
-        +
-
-        path
-
-    )
+    results=[]
 
 
-    public_url = (
+    headers = {
 
-        SUPABASE_URL
+        "Authorization":
+            f"Bearer {SUPABASE_SERVICE_KEY}",
 
-        +
+        "apikey":
+            SUPABASE_SERVICE_KEY,
 
-        "/storage/v1/object/public/"
-
-        +
-
-        BUCKET_NAME
-
-        +
-
-        "/"
-
-        +
-
-        path
-
-    )
-
-
-    return {
-
-        "status":"success",
-
-        "path":path,
-
-        "upload_url":url,
-
-        "public_url":public_url
+        "Content-Type":
+            "application/octet-stream"
 
     }
 
 
 
-# =========================
-# 提交文件列表
-# =========================
-
-class CommitFilesRequest(BaseModel):
-
-    batch_id:str
-
-    files:list[str]
+    for file in files:
 
 
+        content = await file.read()
 
-@app.post("/v1/batch/commit-files")
-def commit_files(
-    data:CommitFilesRequest
-):
+
+        path = (
+            batch_id
+            +
+            "/"
+            +
+            file.filename
+        )
+
+
+        upload_url = (
+
+            SUPABASE_URL
+
+            +
+            "/storage/v1/object/"
+
+            +
+            BUCKET_NAME
+
+            +
+            "/"
+
+            +
+            path
+
+        )
+
+
+        response = requests.post(
+
+            upload_url,
+
+            headers=headers,
+
+            data=content,
+
+            timeout=120
+
+        )
+
+
+        if response.status_code not in [200,201]:
+
+            results.append({
+
+                "filename":
+                    file.filename,
+
+                "status":
+                    "failed",
+
+                "detail":
+                    response.text
+
+            })
+
+            continue
+
+
+
+        public_url = (
+
+            SUPABASE_URL
+
+            +
+
+            "/storage/v1/object/public/"
+
+            +
+
+            BUCKET_NAME
+
+            +
+
+            "/"
+
+            +
+
+            path
+
+        )
+
+
+        results.append({
+
+            "filename":
+                file.filename,
+
+            "status":
+                "success",
+
+            "path":
+                path,
+
+            "public_url":
+                public_url,
+
+            "size":
+                len(content)
+
+        })
 
 
     return {
 
-        "status":"success",
+
+        "status":
+            "success",
+
 
         "batch_id":
-            data.batch_id,
+            batch_id,
+
 
         "files":
-            data.files,
-
-        "message":
-            "files committed"
+            results
 
     }
+
 
 
 
@@ -270,7 +292,7 @@ def read_har(
 
     try:
 
-        response = requests.get(
+        response=requests.get(
             data.url,
             timeout=20
         )
@@ -278,7 +300,8 @@ def read_har(
 
         return {
 
-            "status":"success",
+            "status":
+                "success",
 
             "http_status":
                 response.status_code,
@@ -289,19 +312,81 @@ def read_har(
             "content_type":
                 response.headers.get(
                     "content-type"
-                )
+                ),
+
+            "message":
+                "HAR download success"
 
         }
 
 
     except Exception as e:
 
-
         return {
 
-            "status":"error",
+            "status":
+                "error",
 
             "detail":
                 str(e)
 
         }
+
+
+
+# =========================
+# 生成public url测试
+# =========================
+
+class PublicURLRequest(BaseModel):
+
+    path:str
+
+
+
+@app.post("/v1/upload/public-url")
+def public_url(
+    data:PublicURLRequest
+):
+
+
+    if not SUPABASE_URL:
+
+        raise HTTPException(
+            500,
+            "SUPABASE_URL missing"
+        )
+
+
+    url=(
+
+        SUPABASE_URL
+
+        +
+
+        "/storage/v1/object/public/"
+
+        +
+
+        BUCKET_NAME
+
+        +
+
+        "/"
+
+        +
+
+        data.path
+
+    )
+
+
+    return {
+
+        "status":
+            "success",
+
+        "public_url":
+            url
+
+    }
