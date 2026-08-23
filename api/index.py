@@ -1,17 +1,22 @@
-from fastapi import FastAPI, UploadFile, File
-from typing import List
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import os
 import uuid
 from datetime import datetime
+
 from supabase import create_client
 
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.3.1",
+    version="0.4.0",
     description="TikTok Shop销量监控系统"
 )
 
+
+# =========================
+# Supabase配置
+# =========================
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
@@ -29,11 +34,16 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 
 
 
+# =========================
+# 基础接口
+# =========================
+
+
 @app.get("/")
 def home():
     return {
-        "status":"ok",
-        "message":"天天爆单 Bridge running"
+        "status": "ok",
+        "message": "天天爆单 Bridge running"
     }
 
 
@@ -41,60 +51,94 @@ def home():
 @app.get("/health")
 def health():
     return {
-        "status":"healthy"
+        "status": "healthy"
     }
 
 
 
-@app.post("/v1/upload/har")
-async def upload_har(
-    files: List[UploadFile] = File(
-        ...,
-        description="上传HAR文件，可多选"
-    )
-):
+# =========================
+# 创建上传任务
+# =========================
+
+
+@app.post("/v1/upload/create")
+def create_upload():
 
     batch_id = str(uuid.uuid4())
 
-    result = []
+
+    return {
+        "status": "success",
+        "batch_id": batch_id,
+        "bucket": BUCKET_NAME,
+        "created_at": datetime.utcnow().isoformat()
+    }
 
 
-    for file in files:
 
-        content = await file.read()
+# =========================
+# 生成上传路径
+# =========================
 
 
-        filename = (
-            datetime.utcnow().strftime("%Y%m%d")
-            +
-            "/"
-            +
-            batch_id
-            +
-            "/"
-            +
-            file.filename
+class UploadPathRequest(BaseModel):
+    batch_id: str
+    filename: str
+
+
+
+@app.post("/v1/upload/path")
+def create_upload_path(
+    data: UploadPathRequest
+):
+
+    if not data.filename.endswith(".har"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only HAR files allowed"
         )
 
 
-        if supabase:
-
-            supabase.storage.from_(
-                BUCKET_NAME
-            ).upload(
-                filename,
-                content
-            )
-
-
-        result.append({
-            "name":file.filename,
-            "size":len(content)
-        })
+    path = (
+        datetime.utcnow().strftime("%Y%m%d")
+        +
+        "/"
+        +
+        data.batch_id
+        +
+        "/"
+        +
+        data.filename
+    )
 
 
     return {
-        "status":"success",
-        "batch_id":batch_id,
-        "files":result
+        "status": "success",
+        "path": path,
+        "bucket": BUCKET_NAME
+    }
+
+
+
+# =========================
+# 上传完成通知
+# =========================
+
+
+class CommitRequest(BaseModel):
+    batch_id: str
+    files: list[str]
+
+
+
+@app.post("/v1/upload/commit")
+def commit_upload(
+    data: CommitRequest
+):
+
+    return {
+        "status": "success",
+        "batch_id": data.batch_id,
+        "files": data.files,
+        "message": "Upload completed"
     }
