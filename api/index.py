@@ -371,12 +371,13 @@ def commit_files(
             "batch committed"
 
     }
-    # =========================
+# =========================
 # HAR解析测试
 # =========================
 
 class ParseHARRequest(BaseModel):
     url: str
+
 
 
 @app.post("/v1/debug/parse-har")
@@ -387,53 +388,40 @@ def parse_har(
     try:
 
         import json
-        import os
-        from supabase import create_client
 
 
-        supabase = create_client(
-            os.environ["SUPABASE_URL"],
-            os.environ["SUPABASE_SERVICE_KEY"]
+        storage_url = (
+            os.environ["SUPABASE_URL"]
+            + "/storage/v1/object/"
+            + "har-files/"
+            + data.url.split("/har-files/")[1]
         )
 
 
-        # 从URL里面提取storage路径
-
-        path = data.url.split(
-            "/har-files/"
-        )[1]
-
-
-        import requests
-
-
-storage_url = (
-    os.environ["SUPABASE_URL"]
-    + "/storage/v1/object/"
-    + "har-files/"
-    + path
-)
+        file_response = requests.get(
+            storage_url,
+            headers={
+                "Authorization":
+                "Bearer "
+                + os.environ["SUPABASE_SERVICE_KEY"]
+            },
+            timeout=60
+        )
 
 
-file_response = requests.get(
-    storage_url,
-    headers={
-        "Authorization":
-        "Bearer " + os.environ["SUPABASE_SERVICE_KEY"]
-    },
-    timeout=60
-)
+        if file_response.status_code != 200:
+
+            return {
+
+                "status":"error",
+
+                "detail":
+                    file_response.text
+
+            }
 
 
-if file_response.status_code != 200:
-
-    return {
-        "status":"error",
-        "detail":file_response.text
-    }
-
-
-file_data = file_response.content
+        file_data = file_response.content
 
 
         har_text = file_data.decode(
@@ -455,81 +443,23 @@ file_data = file_response.content
 
         return {
 
-            "status": "success",
+            "status":
+                "success",
 
-            "entries": len(entries),
+            "entries":
+                len(entries),
 
-            "size": len(file_data),
+            "size":
+                len(file_data),
 
-            "message": "HAR读取成功"
+            "message":
+                "HAR读取成功"
 
         }
+
 
 
     except Exception as e:
-
-
-        return {
-
-            "status": "error",
-
-            "detail": str(e)
-
-        }
-    try:
-
-        import json
-
-        response = requests.get(
-            data.url,
-            timeout=60,
-            headers={
-                "User-Agent": "Mozilla/5.0"
-            }
-        )
-
-
-        if response.status_code != 200:
-            return {
-                "status": "error",
-                "http_status": response.status_code
-            }
-
-
-        har = json.loads(
-            response.text
-        )
-
-
-        entries = (
-            har
-            .get("log", {})
-            .get("entries", [])
-        )
-
-
-        return {
-
-            "status": "success",
-
-            "entries": len(entries),
-
-            "size": len(response.content),
-
-            "message": "HAR读取成功"
-
-        }
-
-
-    except Exception as e:
-
-        return {
-
-            "status": "error",
-
-            "detail": str(e)
-
-        }
 
 
         return {
