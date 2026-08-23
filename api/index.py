@@ -371,3 +371,80 @@ def commit_files(
             "batch committed"
 
     }
+    # =========================
+# HAR解析测试
+# =========================
+
+class ParseHARRequest(BaseModel):
+    url: str
+
+
+@app.post("/v1/debug/parse-har")
+def parse_har(
+    data: ParseHARRequest
+):
+
+    try:
+
+        response = requests.get(
+            data.url,
+            timeout=60
+        )
+
+
+        if response.status_code != 200:
+
+            return {
+
+                "status": "error",
+
+                "http_status":
+                    response.status_code
+
+            }
+
+
+        import json
+
+
+        har = json.loads(
+            response.text
+        )
+
+
+        entries = (
+            har
+            .get("log", {})
+            .get("entries", [])
+        )
+
+
+        return {
+
+            "status":
+                "success",
+
+            "entries":
+                len(entries),
+
+            "size":
+                len(response.content),
+
+            "message":
+                "HAR读取成功"
+
+        }
+
+
+    except Exception as e:
+
+
+        return {
+
+            "status":
+                "error",
+
+            "detail":
+                str(e)
+
+        }
