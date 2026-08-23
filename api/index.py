@@ -9,7 +9,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.5.1",
+    version="999.999",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
