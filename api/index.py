@@ -1,9 +1,10 @@
 from fastapi import FastAPI, UploadFile, File
+from typing import List
 
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="1.0.0",
+    version="0.1.0",
     description="TikTok Shop销量监控系统"
 )
 
@@ -12,7 +13,7 @@ app = FastAPI(
 def home():
     return {
         "status": "ok",
-        "message": "天天爆单 Bridge V2 running"
+        "message": "天天爆单 Bridge running"
     }
 
 
@@ -23,14 +24,25 @@ def health():
     }
 
 
-@app.post("/upload")
-async def upload_har(file: UploadFile = File(...)):
+@app.post("/v1/batch/commit-files")
+async def commit_files(
+    files: List[UploadFile] = File(...)
+):
 
-    content = await file.read()
+    result = []
+
+    for file in files:
+        content = await file.read()
+
+        result.append({
+            "filename": file.filename,
+            "size": len(content)
+        })
+
 
     return {
         "status": "success",
-        "filename": file.filename,
-        "size": len(content),
-        "message": "HAR文件接收成功"
+        "count": len(result),
+        "files": result,
+        "message": "HAR批次接收成功"
     }
