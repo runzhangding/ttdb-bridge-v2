@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -8,7 +8,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.5.3",
+    version="0.5.4",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -42,7 +42,7 @@ def home():
     return {
         "status": "ok",
         "service": "天天爆单 Bridge",
-        "version": "0.5.3",
+        "version": "0.5.4",
         "docs": "/docs"
     }
 
@@ -70,7 +70,8 @@ def debug_env():
 
     return {
 
-        "supabase_url": SUPABASE_URL,
+        "supabase_url":
+            SUPABASE_URL,
 
         "service_key_exists":
             bool(SUPABASE_SERVICE_KEY),
@@ -82,14 +83,16 @@ def debug_env():
 
 
 
+
 # =========================
-# 创建上传批次
+# 创建批次
 # =========================
 
 @app.post("/v1/upload/create")
 def create_upload():
 
     batch_id = str(uuid.uuid4())
+
 
     return {
 
@@ -106,50 +109,58 @@ def create_upload():
 
 
 
+
+
 # =========================
-# 上传 HAR
-# 单文件测试版
+# 生成 Supabase 上传地址
+# 不经过Vercel
 # =========================
 
-@app.post("/v1/upload/har")
-async def upload_har(
 
-    file: UploadFile = File(
-        ...,
-        description="上传TikTok Shop HAR文件"
-    )
+class SignRequest(BaseModel):
 
+    batch_id: str
+
+    filename: str
+
+
+
+
+@app.post("/v1/upload/sign")
+def create_upload_sign(
+    data: SignRequest
 ):
 
 
     if not SUPABASE_URL:
 
         raise HTTPException(
-            status_code=500,
-            detail="SUPABASE_URL missing"
+            500,
+            "SUPABASE_URL missing"
         )
 
 
     if not SUPABASE_SERVICE_KEY:
 
         raise HTTPException(
-            status_code=500,
-            detail="SUPABASE_SERVICE_KEY missing"
+            500,
+            "SUPABASE_SERVICE_KEY missing"
         )
 
 
-    batch_id = str(uuid.uuid4())
-
-
-    content = await file.read()
-
 
     path = (
-        batch_id
+
+        data.batch_id
+
         +
+
         "/"
+
         +
-        file.filename
+
+        data.filename
+
     )
 
 
@@ -158,58 +169,22 @@ async def upload_har(
         SUPABASE_URL
 
         +
+
         "/storage/v1/object/"
 
         +
+
         BUCKET_NAME
 
         +
+
         "/"
 
         +
+
         path
 
     )
-
-
-    headers = {
-
-        "Authorization":
-            f"Bearer {SUPABASE_SERVICE_KEY}",
-
-        "apikey":
-            SUPABASE_SERVICE_KEY,
-
-        "Content-Type":
-            "application/octet-stream"
-
-    }
-
-
-    response = requests.post(
-
-        upload_url,
-
-        headers=headers,
-
-        data=content,
-
-        timeout=300
-
-    )
-
-
-    if response.status_code not in [200,201]:
-
-
-        raise HTTPException(
-
-            status_code=500,
-
-            detail=response.text
-
-        )
-
 
 
     public_url = (
@@ -217,48 +192,120 @@ async def upload_har(
         SUPABASE_URL
 
         +
+
         "/storage/v1/object/public/"
 
         +
+
         BUCKET_NAME
 
         +
+
         "/"
 
         +
+
         path
 
     )
 
 
+
     return {
 
         "status":
+
             "success",
 
+
         "batch_id":
-            batch_id,
+
+            data.batch_id,
+
 
         "filename":
-            file.filename,
+
+            data.filename,
+
 
         "path":
+
             path,
 
-        "public_url":
-            public_url,
 
-        "size":
-            len(content)
+        "upload_url":
+
+            upload_url,
+
+
+        "public_url":
+
+            public_url
 
     }
-    # =========================
-# HAR读取测试
+
+
+
+
+
 # =========================
+# 提交批次文件
+# 告诉Bridge有哪些HAR
+# =========================
+
+
+class CommitRequest(BaseModel):
+
+    batch_id: str
+
+    files: list[str]
+
+
+
+
+@app.post("/v1/batch/commit-files")
+def commit_files(
+    data: CommitRequest
+):
+
+
+    return {
+
+
+        "status":
+
+            "success",
+
+
+        "batch_id":
+
+            data.batch_id,
+
+
+        "files":
+
+            data.files,
+
+
+        "message":
+
+            "Files committed successfully"
+
+    }
+
+
+
+
+
+# =========================
+# 测试HAR读取
+# =========================
+
 
 class ReadHARRequest(BaseModel):
 
     url: str
+
 
 
 
@@ -267,34 +314,50 @@ def read_har(
     data: ReadHARRequest
 ):
 
+
     try:
 
+
         response = requests.get(
+
             data.url,
+
             timeout=30
+
         )
 
 
         return {
 
+
             "status":
+
                 "success",
 
+
             "http_status":
+
                 response.status_code,
 
+
             "content_length":
+
                 len(response.content),
 
+
             "content_type":
+
                 response.headers.get(
                     "content-type"
                 ),
 
+
             "message":
+
                 "HAR download success"
 
         }
+
 
 
     except Exception as e:
@@ -302,10 +365,14 @@ def read_har(
 
         return {
 
+
             "status":
+
                 "error",
 
+
             "detail":
+
                 str(e)
 
         }
@@ -313,13 +380,16 @@ def read_har(
 
 
 
+
 # =========================
-# public url测试
+# 根据路径生成公开URL
 # =========================
+
 
 class PublicURLRequest(BaseModel):
 
     path: str
+
 
 
 
@@ -328,14 +398,12 @@ def public_url(
     data: PublicURLRequest
 ):
 
+
     if not SUPABASE_URL:
 
         raise HTTPException(
-
-            status_code=500,
-
-            detail="SUPABASE_URL missing"
-
+            500,
+            "SUPABASE_URL missing"
         )
 
 
@@ -363,6 +431,7 @@ def public_url(
 
 
     return {
+
 
         "status":
 
