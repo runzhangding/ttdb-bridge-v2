@@ -8,7 +8,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.4.4",
+    version="0.4.5",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -28,6 +28,7 @@ SUPABASE_SERVICE_KEY = os.environ.get(
     "SUPABASE_SERVICE_KEY"
 )
 
+
 BUCKET_NAME = "har-files"
 
 
@@ -41,13 +42,13 @@ def home():
 
     return {
 
-        "status": "ok",
+        "status":"ok",
 
-        "service": "天天爆单 Bridge",
+        "service":"天天爆单 Bridge",
 
-        "version": "0.4.4",
+        "version":"0.4.5",
 
-        "docs": "/docs"
+        "docs":"/docs"
 
     }
 
@@ -62,7 +63,7 @@ def health():
 
     return {
 
-        "status": "healthy"
+        "status":"healthy"
 
     }
 
@@ -79,11 +80,11 @@ def debug_env():
 
         "supabase_url": SUPABASE_URL,
 
-        "service_key_exists": bool(
-            SUPABASE_SERVICE_KEY
-        ),
+        "service_key_exists":
+            bool(SUPABASE_SERVICE_KEY),
 
-        "bucket": BUCKET_NAME
+        "bucket":
+            BUCKET_NAME
 
     }
 
@@ -101,9 +102,9 @@ def create_upload():
 
     return {
 
-        "status": "success",
+        "status":"success",
 
-        "batch_id": batch_id,
+        "batch_id":batch_id,
 
         "created_at":
             datetime.utcnow().isoformat()
@@ -113,38 +114,219 @@ def create_upload():
 
 
 # =========================
-# 上传HAR文件
+# 上传HAR到Supabase
 # =========================
 
 @app.post("/v1/upload/har")
 async def upload_har(
-    files: list[UploadFile] = File(...)
+    files:list[UploadFile]=File(...)
 ):
 
-    result = []
+    if not SUPABASE_URL:
+
+        raise HTTPException(
+            500,
+            "SUPABASE_URL missing"
+        )
+
+
+    if not SUPABASE_SERVICE_KEY:
+
+        raise HTTPException(
+            500,
+            "SUPABASE_SERVICE_KEY missing"
+        )
+
+
+    results=[]
+
+
+    date_folder = datetime.utcnow().strftime(
+        "%Y%m%d"
+    )
+
+
+    headers={
+
+        "Authorization":
+            f"Bearer {SUPABASE_SERVICE_KEY}",
+
+        "apikey":
+            SUPABASE_SERVICE_KEY,
+
+        "Content-Type":
+            "application/json"
+
+    }
+
 
 
     for file in files:
 
+
         content = await file.read()
 
 
-        result.append({
+        filename = (
 
-            "filename": file.filename,
+            date_folder
 
-            "size": len(content)
+            +
+
+            "/"
+
+            +
+
+            str(uuid.uuid4())
+
+            +
+
+            "_"
+
+            +
+
+            file.filename
+
+        )
+
+
+
+        upload_url = (
+
+            SUPABASE_URL
+
+            +
+
+            "/storage/v1/object/"
+
+            +
+
+            BUCKET_NAME
+
+            +
+
+            "/"
+
+            +
+
+            filename
+
+        )
+
+
+
+        upload_headers={
+
+            "Authorization":
+                f"Bearer {SUPABASE_SERVICE_KEY}",
+
+            "apikey":
+                SUPABASE_SERVICE_KEY,
+
+            "Content-Type":
+                "application/json"
+
+        }
+
+
+
+        response=requests.post(
+
+            upload_url,
+
+            headers=upload_headers,
+
+            data=content,
+
+            timeout=60
+
+        )
+
+
+
+        if response.status_code not in [
+            200,
+            201
+        ]:
+
+            results.append({
+
+                "filename":
+                    file.filename,
+
+                "status":
+                    "failed",
+
+                "detail":
+                    response.text
+
+            })
+
+            continue
+
+
+
+        public_url=(
+
+            SUPABASE_URL
+
+            +
+
+            "/storage/v1/object/public/"
+
+            +
+
+            BUCKET_NAME
+
+            +
+
+            "/"
+
+            +
+
+            filename
+
+        )
+
+
+        results.append({
+
+            "filename":
+                file.filename,
+
+
+            "status":
+                "success",
+
+
+            "size":
+                len(content),
+
+
+            "path":
+                filename,
+
+
+            "public_url":
+                public_url
 
         })
 
 
+
     return {
 
-        "status": "success",
 
-        "files": result
+        "status":
+            "success",
+
+
+        "files":
+            results
 
     }
+
+
 
 
 
@@ -154,52 +336,48 @@ async def upload_har(
 
 class ReadHARRequest(BaseModel):
 
-    url: str
+    url:str
+
 
 
 
 @app.post("/v1/debug/read-har")
 def read_har(
-    data: ReadHARRequest
+    data:ReadHARRequest
 ):
-
-    session = None
 
     try:
 
-        session = requests.Session()
 
-
-        response = session.get(
+        response=requests.get(
 
             data.url,
 
-            timeout=(10, 30),
-
-            headers={
-
-                "User-Agent":
-                    "Mozilla/5.0"
-
-            }
+            timeout=30
 
         )
 
 
         return {
 
-            "status": "success",
+
+            "status":
+                "success",
+
 
             "http_status":
                 response.status_code,
 
+
             "content_length":
                 len(response.content),
+
 
             "content_type":
                 response.headers.get(
                     "content-type"
                 ),
+
 
             "message":
                 "HAR download success"
@@ -207,12 +385,16 @@ def read_har(
         }
 
 
+
     except Exception as e:
 
 
         return {
 
-            "status": "error",
+
+            "status":
+                "error",
+
 
             "detail":
                 str(e)
@@ -220,11 +402,6 @@ def read_har(
         }
 
 
-    finally:
-
-        if session:
-
-            session.close()
 
 
 
@@ -234,13 +411,15 @@ def read_har(
 
 class PublicURLRequest(BaseModel):
 
-    path: str
+    path:str
+
+
 
 
 
 @app.post("/v1/upload/public-url")
 def public_url(
-    data: PublicURLRequest
+    data:PublicURLRequest
 ):
 
 
@@ -248,24 +427,33 @@ def public_url(
 
         raise HTTPException(
 
-            status_code=500,
+            500,
 
-            detail="SUPABASE_URL missing"
+            "SUPABASE_URL missing"
 
         )
 
 
-    url = (
+
+    url=(
 
         SUPABASE_URL
 
-        + "/storage/v1/object/public/"
+        +
 
-        + BUCKET_NAME
+        "/storage/v1/object/public/"
 
-        + "/"
+        +
 
-        + data.path
+        BUCKET_NAME
+
+        +
+
+        "/"
+
+        +
+
+        data.path
 
     )
 
@@ -273,8 +461,11 @@ def public_url(
     return {
 
 
-        "status": "success",
+        "status":
+            "success",
 
-        "public_url": url
+
+        "public_url":
+            url
 
     }
