@@ -142,3 +142,39 @@ def commit_upload(
         "files": data.files,
         "message": "Upload completed"
     }
+    @app.post("/v1/upload/public-url")
+def public_url(
+    batch_id:str,
+    filename:str
+):
+
+    path = (
+        datetime.utcnow().strftime("%Y%m%d")
+        +
+        "/"
+        +
+        batch_id
+        +
+        "/"
+        +
+        filename
+    )
+
+    url = (
+        SUPABASE_URL
+        +
+        "/storage/v1/object/public/"
+        +
+        BUCKET_NAME
+        +
+        "/"
+        +
+        path
+    )
+
+
+    return {
+        "status":"success",
+        "path":path,
+        "public_url":url
+    }
