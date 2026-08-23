@@ -1,5 +1,4 @@
 from fastapi import FastAPI, UploadFile, File
-from typing import List
 
 app = FastAPI(
     title="天天爆单 Bridge",
@@ -25,7 +24,10 @@ def health():
 
 @app.post("/v1/batch/commit-files")
 async def commit_files(
-    files: list[UploadFile] = File(...)
+    files: list[UploadFile] = File(
+        ...,
+        description="上传HAR文件，可多选"
+    )
 ):
     result = []
 
