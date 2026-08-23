@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import uuid
-
+import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
