@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
-from typing import List
+from typing import Annotated
 import os
 import uuid
 import requests
@@ -9,7 +9,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.4.9",
+    version="0.5.0",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -41,15 +41,10 @@ BUCKET_NAME = "har-files"
 def home():
 
     return {
-
         "status": "ok",
-
         "service": "天天爆单 Bridge",
-
-        "version": "0.4.9",
-
+        "version": "0.5.0",
         "docs": "/docs"
-
     }
 
 
@@ -62,9 +57,7 @@ def home():
 def health():
 
     return {
-
         "status": "healthy"
-
     }
 
 
@@ -78,7 +71,8 @@ def debug_env():
 
     return {
 
-        "supabase_url": SUPABASE_URL,
+        "supabase_url":
+            SUPABASE_URL,
 
         "service_key_exists":
             bool(SUPABASE_SERVICE_KEY),
@@ -99,7 +93,6 @@ def create_upload():
 
     batch_id = str(uuid.uuid4())
 
-
     return {
 
         "status": "success",
@@ -114,12 +107,17 @@ def create_upload():
 
 
 # =========================
-# 上传HAR文件
+# 上传 HAR 文件
 # =========================
 
 @app.post("/v1/upload/har")
 async def upload_har(
-    files: List[UploadFile] = File(...)
+
+    files: Annotated[
+        list[UploadFile],
+        File(description="上传TikTok Shop HAR文件，可同时多个")
+    ]
+
 ):
 
 
@@ -139,12 +137,10 @@ async def upload_har(
         )
 
 
-
     batch_id = str(uuid.uuid4())
 
 
     results = []
-
 
 
     headers = {
@@ -182,15 +178,19 @@ async def upload_har(
             SUPABASE_URL
 
             +
+
             "/storage/v1/object/"
 
             +
+
             BUCKET_NAME
 
             +
+
             "/"
 
             +
+
             path
 
         )
@@ -210,7 +210,7 @@ async def upload_har(
 
 
 
-        if response.status_code not in [200,201]:
+        if response.status_code not in [200, 201]:
 
             results.append({
 
@@ -275,14 +275,11 @@ async def upload_har(
 
     return {
 
-
         "status":
             "success",
 
-
         "batch_id":
             batch_id,
-
 
         "files":
             results
@@ -354,9 +351,8 @@ def read_har(
 
 
 
-
 # =========================
-# 生成public url测试
+# public url测试
 # =========================
 
 class PublicURLRequest(BaseModel):
@@ -370,14 +366,12 @@ def public_url(
     data: PublicURLRequest
 ):
 
-
     if not SUPABASE_URL:
 
         raise HTTPException(
             500,
             "SUPABASE_URL missing"
         )
-
 
 
     url = (
@@ -403,13 +397,10 @@ def public_url(
     )
 
 
-
     return {
-
 
         "status":
             "success",
-
 
         "public_url":
             url
