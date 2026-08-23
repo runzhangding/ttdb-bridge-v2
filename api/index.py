@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
-from typing import List
+from typing import Annotated
 
 
 app = FastAPI(
@@ -26,7 +26,7 @@ def health():
 
 @app.post("/v1/batch/commit-files")
 async def commit_files(
-    files: List[UploadFile] = File(...)
+    files: Annotated[list[UploadFile], File(...)]
 ):
 
     result = []
@@ -34,10 +34,12 @@ async def commit_files(
     for file in files:
         content = await file.read()
 
-        result.append({
-            "filename": file.filename,
-            "size": len(content)
-        })
+        result.append(
+            {
+                "filename": file.filename,
+                "size": len(content)
+            }
+        )
 
     return {
         "status": "success",
