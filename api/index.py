@@ -9,7 +9,7 @@ from supabase import create_client
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.4.1",
+    version="0.4.2",
     description="TikTok Shop销量监控系统"
 )
 
@@ -26,7 +26,9 @@ BUCKET_NAME = "har-files"
 
 supabase = None
 
+
 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+
     supabase = create_client(
         SUPABASE_URL,
         SUPABASE_SERVICE_KEY
@@ -35,7 +37,7 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 
 
 # =========================
-# 基础接口
+# 基础测试
 # =========================
 
 @app.get("/")
@@ -66,11 +68,15 @@ def create_upload():
 
     batch_id = str(uuid.uuid4())
 
+
     return {
 
         "status": "success",
+
         "batch_id": batch_id,
+
         "bucket": BUCKET_NAME,
+
         "created_at": datetime.utcnow().isoformat()
 
     }
@@ -84,6 +90,7 @@ def create_upload():
 class PathRequest(BaseModel):
 
     batch_id: str
+
     filename: str
 
 
@@ -91,23 +98,28 @@ class PathRequest(BaseModel):
 @app.post("/v1/upload/path")
 def upload_path(data: PathRequest):
 
+
     path = (
+
         datetime.utcnow().strftime("%Y%m%d")
-        +
-        "/"
-        +
-        data.batch_id
-        +
-        "/"
-        +
-        data.filename
+
+        + "/"
+
+        + data.batch_id
+
+        + "/"
+
+        + data.filename
+
     )
 
 
     return {
 
         "status": "success",
+
         "path": path,
+
         "bucket": BUCKET_NAME
 
     }
@@ -121,6 +133,7 @@ def upload_path(data: PathRequest):
 class PublicURLRequest(BaseModel):
 
     batch_id: str
+
     filename: str
 
 
@@ -130,35 +143,41 @@ def public_url(data: PublicURLRequest):
 
 
     path = (
+
         datetime.utcnow().strftime("%Y%m%d")
-        +
-        "/"
-        +
-        data.batch_id
-        +
-        "/"
-        +
-        data.filename
+
+        + "/"
+
+        + data.batch_id
+
+        + "/"
+
+        + data.filename
+
     )
 
 
     url = (
+
         SUPABASE_URL
-        +
-        "/storage/v1/object/public/"
-        +
-        BUCKET_NAME
-        +
-        "/"
-        +
-        path
+
+        + "/storage/v1/object/public/"
+
+        + BUCKET_NAME
+
+        + "/"
+
+        + path
+
     )
 
 
     return {
 
         "status": "success",
+
         "path": path,
+
         "public_url": url
 
     }
@@ -166,7 +185,7 @@ def public_url(data: PublicURLRequest):
 
 
 # =========================
-# 调试读取HAR
+# HAR读取测试
 # =========================
 
 class ReadHARRequest(BaseModel):
@@ -182,42 +201,57 @@ def read_har(data: ReadHARRequest):
     if not supabase:
 
         raise HTTPException(
+
             status_code=500,
+
             detail="Supabase not configured"
+
         )
 
 
     try:
 
-        # 从public_url里面提取storage路径
+
+        # 从public_url提取Storage路径
 
         path = data.url.split(
             "/har-files/"
         )[1]
 
 
-        # 使用Supabase SDK读取
-        content = (
+
+        # 创建临时访问链接
+
+        signed = (
+
             supabase
+
             .storage
+
             .from_(BUCKET_NAME)
-            .download(path)
+
+            .create_signed_url(
+
+                path,
+
+                60
+
+            )
+
         )
+
 
 
         return {
 
             "status": "success",
 
-            "size": len(content),
+            "path": path,
 
-            "start": content[:300]
-            .decode(
-                "utf-8",
-                errors="ignore"
-            )
+            "signed_url": signed
 
         }
+
 
 
     except Exception as e:
