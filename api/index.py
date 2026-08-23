@@ -9,7 +9,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="999.999",
+    version="0.5.2",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -43,7 +43,7 @@ def home():
     return {
         "status": "ok",
         "service": "天天爆单 Bridge",
-        "version": "0.5.1",
+        "version": "0.5.2",
         "docs": "/docs"
     }
 
@@ -95,17 +95,14 @@ def create_upload():
 
     return {
 
-        "status":
-            "success",
+        "status": "success",
 
-        "batch_id":
-            batch_id,
+        "batch_id": batch_id,
 
         "created_at":
             datetime.utcnow().isoformat()
 
     }
-
 
 
 
@@ -177,29 +174,23 @@ async def upload_har(
         )
 
 
-
         upload_url = (
 
             SUPABASE_URL
 
             +
-
             "/storage/v1/object/"
 
             +
-
             BUCKET_NAME
 
             +
-
             "/"
 
             +
-
             path
 
         )
-
 
 
         response = requests.post(
@@ -210,14 +201,12 @@ async def upload_har(
 
             data=content,
 
-            timeout=180
+            timeout=300
 
         )
 
 
-
         if response.status_code not in [200,201]:
-
 
             results.append({
 
@@ -236,25 +225,20 @@ async def upload_har(
 
 
 
-
         public_url = (
 
             SUPABASE_URL
 
             +
-
             "/storage/v1/object/public/"
 
             +
-
             BUCKET_NAME
 
             +
-
             "/"
 
             +
-
             path
 
         )
@@ -266,24 +250,19 @@ async def upload_har(
             "filename":
                 file.filename,
 
-
             "status":
                 "success",
-
 
             "path":
                 path,
 
-
             "public_url":
                 public_url,
-
 
             "size":
                 len(content)
 
         })
-
 
 
 
@@ -306,11 +285,9 @@ async def upload_har(
 
 
 
-
 # =========================
 # HAR读取测试
 # =========================
-
 
 class ReadHARRequest(BaseModel):
 
@@ -318,48 +295,34 @@ class ReadHARRequest(BaseModel):
 
 
 
-
 @app.post("/v1/debug/read-har")
 def read_har(
-
     data: ReadHARRequest
-
 ):
-
 
     try:
 
-
         response = requests.get(
-
             data.url,
-
-            timeout=20
-
+            timeout=30
         )
-
 
 
         return {
 
-
             "status":
                 "success",
-
 
             "http_status":
                 response.status_code,
 
-
             "content_length":
                 len(response.content),
-
 
             "content_type":
                 response.headers.get(
                     "content-type"
                 ),
-
 
             "message":
                 "HAR download success"
@@ -367,16 +330,13 @@ def read_har(
         }
 
 
-
     except Exception as e:
 
 
         return {
 
-
             "status":
                 "error",
-
 
             "detail":
                 str(e)
@@ -385,12 +345,9 @@ def read_har(
 
 
 
-
-
 # =========================
 # public url测试
 # =========================
-
 
 class PublicURLRequest(BaseModel):
 
@@ -398,27 +355,17 @@ class PublicURLRequest(BaseModel):
 
 
 
-
-
 @app.post("/v1/upload/public-url")
 def public_url(
-
     data: PublicURLRequest
-
 ):
-
 
     if not SUPABASE_URL:
 
-
         raise HTTPException(
-
             status_code=500,
-
             detail="SUPABASE_URL missing"
-
         )
-
 
 
     url = (
@@ -426,31 +373,24 @@ def public_url(
         SUPABASE_URL
 
         +
-
         "/storage/v1/object/public/"
 
         +
-
         BUCKET_NAME
 
         +
-
         "/"
 
         +
-
         data.path
 
     )
 
 
-
     return {
-
 
         "status":
             "success",
-
 
         "public_url":
             url
