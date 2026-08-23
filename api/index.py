@@ -383,28 +383,24 @@ class ParseHARRequest(BaseModel):
 def parse_har(
     data: ParseHARRequest
 ):
-
     try:
+
+        import json
 
         response = requests.get(
             data.url,
-            timeout=60
+            timeout=60,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            }
         )
 
 
         if response.status_code != 200:
-
             return {
-
                 "status": "error",
-
-                "http_status":
-                    response.status_code
-
+                "http_status": response.status_code
             }
-
-
-        import json
 
 
         har = json.loads(
@@ -421,22 +417,26 @@ def parse_har(
 
         return {
 
-            "status":
-                "success",
+            "status": "success",
 
-            "entries":
-                len(entries),
+            "entries": len(entries),
 
-            "size":
-                len(response.content),
+            "size": len(response.content),
 
-            "message":
-                "HAR读取成功"
+            "message": "HAR读取成功"
 
         }
 
 
     except Exception as e:
+
+        return {
+
+            "status": "error",
+
+            "detail": str(e)
+
+        }
 
 
         return {
