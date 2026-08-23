@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
+from typing import List
 import os
 import uuid
 import requests
@@ -8,7 +9,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.4.8",
+    version="0.4.9",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -20,7 +21,9 @@ app = FastAPI(
 # Supabase配置
 # =========================
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_URL = os.environ.get(
+    "SUPABASE_URL"
+)
 
 SUPABASE_SERVICE_KEY = os.environ.get(
     "SUPABASE_SERVICE_KEY"
@@ -38,10 +41,15 @@ BUCKET_NAME = "har-files"
 def home():
 
     return {
-        "status":"ok",
-        "service":"天天爆单 Bridge",
-        "version":"0.4.8",
-        "docs":"/docs"
+
+        "status": "ok",
+
+        "service": "天天爆单 Bridge",
+
+        "version": "0.4.9",
+
+        "docs": "/docs"
+
     }
 
 
@@ -54,7 +62,9 @@ def home():
 def health():
 
     return {
-        "status":"healthy"
+
+        "status": "healthy"
+
     }
 
 
@@ -68,8 +78,7 @@ def debug_env():
 
     return {
 
-        "supabase_url":
-            SUPABASE_URL,
+        "supabase_url": SUPABASE_URL,
 
         "service_key_exists":
             bool(SUPABASE_SERVICE_KEY),
@@ -90,11 +99,12 @@ def create_upload():
 
     batch_id = str(uuid.uuid4())
 
+
     return {
 
-        "status":"success",
+        "status": "success",
 
-        "batch_id":batch_id,
+        "batch_id": batch_id,
 
         "created_at":
             datetime.utcnow().isoformat()
@@ -104,15 +114,17 @@ def create_upload():
 
 
 # =========================
-# 上传 HAR 到 Supabase
+# 上传HAR文件
 # =========================
 
 @app.post("/v1/upload/har")
 async def upload_har(
-    files:list[UploadFile]=File(...)
+    files: List[UploadFile] = File(...)
 ):
 
+
     if not SUPABASE_URL:
+
         raise HTTPException(
             500,
             "SUPABASE_URL missing"
@@ -120,16 +132,19 @@ async def upload_har(
 
 
     if not SUPABASE_SERVICE_KEY:
+
         raise HTTPException(
             500,
             "SUPABASE_SERVICE_KEY missing"
         )
 
 
+
     batch_id = str(uuid.uuid4())
 
 
-    results=[]
+    results = []
+
 
 
     headers = {
@@ -189,9 +204,10 @@ async def upload_har(
 
             data=content,
 
-            timeout=120
+            timeout=180
 
         )
+
 
 
         if response.status_code not in [200,201]:
@@ -256,6 +272,7 @@ async def upload_har(
         })
 
 
+
     return {
 
 
@@ -275,24 +292,25 @@ async def upload_har(
 
 
 
+
 # =========================
 # HAR读取测试
 # =========================
 
 class ReadHARRequest(BaseModel):
 
-    url:str
+    url: str
 
 
 
 @app.post("/v1/debug/read-har")
 def read_har(
-    data:ReadHARRequest
+    data: ReadHARRequest
 ):
 
     try:
 
-        response=requests.get(
+        response = requests.get(
             data.url,
             timeout=20
         )
@@ -322,6 +340,7 @@ def read_har(
 
     except Exception as e:
 
+
         return {
 
             "status":
@@ -334,19 +353,21 @@ def read_har(
 
 
 
+
+
 # =========================
 # 生成public url测试
 # =========================
 
 class PublicURLRequest(BaseModel):
 
-    path:str
+    path: str
 
 
 
 @app.post("/v1/upload/public-url")
 def public_url(
-    data:PublicURLRequest
+    data: PublicURLRequest
 ):
 
 
@@ -358,7 +379,8 @@ def public_url(
         )
 
 
-    url=(
+
+    url = (
 
         SUPABASE_URL
 
@@ -381,10 +403,13 @@ def public_url(
     )
 
 
+
     return {
+
 
         "status":
             "success",
+
 
         "public_url":
             url
