@@ -17,7 +17,7 @@ app = FastAPI(
 
 
 # =========================
-# Supabase配置
+# Supabase 配置
 # =========================
 
 SUPABASE_URL = os.environ.get(
@@ -27,7 +27,6 @@ SUPABASE_URL = os.environ.get(
 SUPABASE_SERVICE_KEY = os.environ.get(
     "SUPABASE_SERVICE_KEY"
 )
-
 
 BUCKET_NAME = "har-files"
 
@@ -42,13 +41,13 @@ def home():
 
     return {
 
-        "status":"ok",
+        "status": "ok",
 
-        "service":"天天爆单 Bridge",
+        "service": "天天爆单 Bridge",
 
-        "version":"0.4.5",
+        "version": "0.4.5",
 
-        "docs":"/docs"
+        "docs": "/docs"
 
     }
 
@@ -63,7 +62,7 @@ def health():
 
     return {
 
-        "status":"healthy"
+        "status": "healthy"
 
     }
 
@@ -73,12 +72,16 @@ def health():
 # 环境检测
 # =========================
 
-@app.get("/debug/env")
+@app.get(
+    "/debug/env",
+    summary="检查环境变量"
+)
 def debug_env():
 
     return {
 
-        "supabase_url": SUPABASE_URL,
+        "supabase_url":
+            SUPABASE_URL,
 
         "service_key_exists":
             bool(SUPABASE_SERVICE_KEY),
@@ -94,17 +97,22 @@ def debug_env():
 # 创建上传批次
 # =========================
 
-@app.post("/v1/upload/create")
+@app.post(
+    "/v1/upload/create",
+    summary="创建上传批次"
+)
 def create_upload():
 
-    batch_id = str(uuid.uuid4())
+    batch_id = str(
+        uuid.uuid4()
+    )
 
 
     return {
 
-        "status":"success",
+        "status": "success",
 
-        "batch_id":batch_id,
+        "batch_id": batch_id,
 
         "created_at":
             datetime.utcnow().isoformat()
@@ -114,12 +122,19 @@ def create_upload():
 
 
 # =========================
-# 上传HAR到Supabase
+# 上传HAR文件
 # =========================
 
-@app.post("/v1/upload/har")
+@app.post(
+    "/v1/upload/har",
+    summary="上传HAR文件",
+    description="上传TikTok Shop HAR文件并保存到Supabase Storage"
+)
 async def upload_har(
-    files:list[UploadFile]=File(...)
+    files: list[UploadFile] = File(
+        ...,
+        description="HAR文件列表"
+    )
 ):
 
     if not SUPABASE_URL:
@@ -138,27 +153,18 @@ async def upload_har(
         )
 
 
-    results=[]
+    result = []
 
 
-    date_folder = datetime.utcnow().strftime(
-        "%Y%m%d"
-    )
-
-
-    headers={
+    headers = {
 
         "Authorization":
             f"Bearer {SUPABASE_SERVICE_KEY}",
 
         "apikey":
-            SUPABASE_SERVICE_KEY,
-
-        "Content-Type":
-            "application/json"
+            SUPABASE_SERVICE_KEY
 
     }
-
 
 
     for file in files:
@@ -169,7 +175,8 @@ async def upload_har(
 
         filename = (
 
-            date_folder
+            datetime.utcnow()
+            .strftime("%Y%m%d")
 
             +
 
@@ -188,7 +195,6 @@ async def upload_har(
             file.filename
 
         )
-
 
 
         upload_url = (
@@ -214,27 +220,11 @@ async def upload_har(
         )
 
 
-
-        upload_headers={
-
-            "Authorization":
-                f"Bearer {SUPABASE_SERVICE_KEY}",
-
-            "apikey":
-                SUPABASE_SERVICE_KEY,
-
-            "Content-Type":
-                "application/json"
-
-        }
-
-
-
-        response=requests.post(
+        response = requests.post(
 
             upload_url,
 
-            headers=upload_headers,
+            headers=headers,
 
             data=content,
 
@@ -243,13 +233,12 @@ async def upload_har(
         )
 
 
-
         if response.status_code not in [
             200,
             201
         ]:
 
-            results.append({
+            result.append({
 
                 "filename":
                     file.filename,
@@ -266,7 +255,7 @@ async def upload_har(
 
 
 
-        public_url=(
+        public_url = (
 
             SUPABASE_URL
 
@@ -289,23 +278,19 @@ async def upload_har(
         )
 
 
-        results.append({
+        result.append({
 
             "filename":
                 file.filename,
 
-
             "status":
                 "success",
-
 
             "size":
                 len(content),
 
-
             "path":
                 filename,
-
 
             "public_url":
                 public_url
@@ -313,19 +298,15 @@ async def upload_har(
         })
 
 
-
     return {
-
 
         "status":
             "success",
 
-
         "files":
-            results
+            result
 
     }
-
 
 
 
@@ -336,48 +317,44 @@ async def upload_har(
 
 class ReadHARRequest(BaseModel):
 
-    url:str
+    url: str
 
 
 
-
-@app.post("/v1/debug/read-har")
+@app.post(
+    "/v1/debug/read-har",
+    summary="读取HAR测试"
+)
 def read_har(
-    data:ReadHARRequest
+    data: ReadHARRequest
 ):
 
     try:
 
-
-        response=requests.get(
+        response = requests.get(
 
             data.url,
 
-            timeout=30
+            timeout=20
 
         )
 
 
         return {
 
-
             "status":
                 "success",
-
 
             "http_status":
                 response.status_code,
 
-
             "content_length":
                 len(response.content),
-
 
             "content_type":
                 response.headers.get(
                     "content-type"
                 ),
-
 
             "message":
                 "HAR download success"
@@ -385,22 +362,18 @@ def read_har(
         }
 
 
-
     except Exception as e:
 
 
         return {
 
-
             "status":
                 "error",
-
 
             "detail":
                 str(e)
 
         }
-
 
 
 
@@ -411,31 +384,28 @@ def read_har(
 
 class PublicURLRequest(BaseModel):
 
-    path:str
+    path: str
 
 
 
-
-
-@app.post("/v1/upload/public-url")
+@app.post(
+    "/v1/upload/public-url",
+    summary="生成公开URL"
+)
 def public_url(
-    data:PublicURLRequest
+    data: PublicURLRequest
 ):
 
 
     if not SUPABASE_URL:
 
         raise HTTPException(
-
             500,
-
             "SUPABASE_URL missing"
-
         )
 
 
-
-    url=(
+    url = (
 
         SUPABASE_URL
 
@@ -460,10 +430,8 @@ def public_url(
 
     return {
 
-
         "status":
             "success",
-
 
         "public_url":
             url
