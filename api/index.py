@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Annotated
+from typing import List
 import os
 import uuid
 import requests
@@ -9,7 +9,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.5.0",
+    version="0.5.1",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -43,7 +43,7 @@ def home():
     return {
         "status": "ok",
         "service": "天天爆单 Bridge",
-        "version": "0.5.0",
+        "version": "0.5.1",
         "docs": "/docs"
     }
 
@@ -95,9 +95,11 @@ def create_upload():
 
     return {
 
-        "status": "success",
+        "status":
+            "success",
 
-        "batch_id": batch_id,
+        "batch_id":
+            batch_id,
 
         "created_at":
             datetime.utcnow().isoformat()
@@ -106,17 +108,19 @@ def create_upload():
 
 
 
+
 # =========================
 # 上传 HAR 文件
+# 支持多个文件
 # =========================
 
 @app.post("/v1/upload/har")
 async def upload_har(
 
-    files: Annotated[
-        list[UploadFile],
-        File(description="上传TikTok Shop HAR文件，可同时多个")
-    ]
+    files: List[UploadFile] = File(
+        ...,
+        description="上传TikTok Shop HAR文件，可同时多个"
+    )
 
 ):
 
@@ -124,16 +128,16 @@ async def upload_har(
     if not SUPABASE_URL:
 
         raise HTTPException(
-            500,
-            "SUPABASE_URL missing"
+            status_code=500,
+            detail="SUPABASE_URL missing"
         )
 
 
     if not SUPABASE_SERVICE_KEY:
 
         raise HTTPException(
-            500,
-            "SUPABASE_SERVICE_KEY missing"
+            status_code=500,
+            detail="SUPABASE_SERVICE_KEY missing"
         )
 
 
@@ -173,6 +177,7 @@ async def upload_har(
         )
 
 
+
         upload_url = (
 
             SUPABASE_URL
@@ -196,6 +201,7 @@ async def upload_har(
         )
 
 
+
         response = requests.post(
 
             upload_url,
@@ -210,7 +216,8 @@ async def upload_har(
 
 
 
-        if response.status_code not in [200, 201]:
+        if response.status_code not in [200,201]:
+
 
             results.append({
 
@@ -226,6 +233,7 @@ async def upload_har(
             })
 
             continue
+
 
 
 
@@ -252,19 +260,24 @@ async def upload_har(
         )
 
 
+
         results.append({
 
             "filename":
                 file.filename,
 
+
             "status":
                 "success",
+
 
             "path":
                 path,
 
+
             "public_url":
                 public_url,
+
 
             "size":
                 len(content)
@@ -273,13 +286,17 @@ async def upload_har(
 
 
 
+
     return {
+
 
         "status":
             "success",
 
+
         "batch_id":
             batch_id,
+
 
         "files":
             results
@@ -294,40 +311,55 @@ async def upload_har(
 # HAR读取测试
 # =========================
 
+
 class ReadHARRequest(BaseModel):
 
     url: str
 
 
 
+
 @app.post("/v1/debug/read-har")
 def read_har(
+
     data: ReadHARRequest
+
 ):
+
 
     try:
 
+
         response = requests.get(
+
             data.url,
+
             timeout=20
+
         )
+
 
 
         return {
 
+
             "status":
                 "success",
+
 
             "http_status":
                 response.status_code,
 
+
             "content_length":
                 len(response.content),
+
 
             "content_type":
                 response.headers.get(
                     "content-type"
                 ),
+
 
             "message":
                 "HAR download success"
@@ -335,13 +367,16 @@ def read_har(
         }
 
 
+
     except Exception as e:
 
 
         return {
 
+
             "status":
                 "error",
+
 
             "detail":
                 str(e)
@@ -351,9 +386,11 @@ def read_har(
 
 
 
+
 # =========================
 # public url测试
 # =========================
+
 
 class PublicURLRequest(BaseModel):
 
@@ -361,17 +398,27 @@ class PublicURLRequest(BaseModel):
 
 
 
+
+
 @app.post("/v1/upload/public-url")
 def public_url(
+
     data: PublicURLRequest
+
 ):
+
 
     if not SUPABASE_URL:
 
+
         raise HTTPException(
-            500,
-            "SUPABASE_URL missing"
+
+            status_code=500,
+
+            detail="SUPABASE_URL missing"
+
         )
+
 
 
     url = (
@@ -397,10 +444,13 @@ def public_url(
     )
 
 
+
     return {
+
 
         "status":
             "success",
+
 
         "public_url":
             url
