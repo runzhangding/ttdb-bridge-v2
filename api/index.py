@@ -3,15 +3,15 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import uuid
-import requests
-
-from supabase import create_client
 
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.4.4",
-    description="TikTok Shop销量监控系统"
+    version="0.4.2",
+    description="TikTok Shop销量监控系统",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
 )
 
 
@@ -25,260 +25,53 @@ SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 BUCKET_NAME = "har-files"
 
 
-supabase = None
-
-
-if SUPABASE_URL and SUPABASE_SERVICE_KEY:
-
-    supabase = create_client(
-        SUPABASE_URL,
-        SUPABASE_SERVICE_KEY
-    )
-
-
-
 # =========================
-# 基础接口
+# 首页
 # =========================
 
 @app.get("/")
 def home():
-
     return {
-        "status":"ok",
-        "service":"天天爆单 Bridge"
+        "status": "ok",
+        "service": "天天爆单 Bridge",
+        "docs": "/docs"
     }
 
 
+# =========================
+# 健康检查
+# =========================
 
 @app.get("/health")
 def health():
-
     return {
         "status":"healthy"
     }
 
 
-
-
 # =========================
-# 创建上传批次
+# 环境测试
 # =========================
 
-@app.post("/v1/upload/create")
-def create_upload():
-
-    batch_id = str(uuid.uuid4())
-
+@app.get("/debug/env")
+def debug_env():
 
     return {
 
-        "status":"success",
+        "supabase_url":
+            SUPABASE_URL,
 
-        "batch_id":batch_id,
-
-        "bucket":BUCKET_NAME,
-
-        "created_at":datetime.utcnow().isoformat()
+        "service_key_exists":
+            bool(SUPABASE_SERVICE_KEY)
 
     }
 
 
 
-
-
 # =========================
-# 上传HAR文件
+# HAR读取测试
 # =========================
 
-@app.post("/v1/upload/har")
-async def upload_har(
-    files:list[UploadFile]=File(...)
-):
-
-    if supabase is None:
-
-        raise HTTPException(
-            status_code=500,
-            detail="Supabase not configured"
-        )
-
-
-    batch_id = str(uuid.uuid4())
-
-    uploaded=[]
-
-
-
-    for file in files:
-
-
-        content = await file.read()
-
-
-        path=(
-
-            datetime.utcnow().strftime("%Y%m%d")
-
-            +"/"
-
-            +batch_id
-
-            +"/"
-
-            +file.filename
-
-        )
-
-
-        supabase.storage.from_(BUCKET_NAME).upload(
-            path,
-            content
-        )
-
-
-        uploaded.append({
-
-            "filename":file.filename,
-
-            "path":path
-
-        })
-
-
-
-    return {
-
-        "status":"success",
-
-        "batch_id":batch_id,
-
-        "files":uploaded
-
-    }
-
-
-
-
-
-# =========================
-# 获取文件路径
-# =========================
-
-class PathRequest(BaseModel):
-
-    batch_id:str
-
-    filename:str
-
-
-
-
-@app.post("/v1/upload/path")
-def upload_path(data:PathRequest):
-
-
-    path=(
-
-        datetime.utcnow().strftime("%Y%m%d")
-
-        +"/"
-
-        +data.batch_id
-
-        +"/"
-
-        +data.filename
-
-    )
-
-
-    return {
-
-        "status":"success",
-
-        "path":path,
-
-        "bucket":BUCKET_NAME
-
-    }
-
-
-
-
-
-# =========================
-# 获取Public URL
-# =========================
-
-class PublicURLRequest(BaseModel):
-
-    batch_id:str
-
-    filename:str
-
-
-
-
-@app.post("/v1/upload/public-url")
-def public_url(data:PublicURLRequest):
-
-
-    path=(
-
-        datetime.utcnow().strftime("%Y%m%d")
-
-        +"/"
-
-        +data.batch_id
-
-        +"/"
-
-        +data.filename
-
-    )
-
-
-    url=(
-
-        SUPABASE_URL
-
-        +
-
-        "/storage/v1/object/public/"
-
-        +
-
-        BUCKET_NAME
-
-        +
-
-        "/"
-
-        +
-
-        path
-
-    )
-
-
-    return {
-
-        "status":"success",
-
-        "path":path,
-
-        "public_url":url
-
-    }
-
-
-
-
-
-# =========================
-# Debug读取HAR
-# =========================
 
 class ReadHARRequest(BaseModel):
 
@@ -286,52 +79,16 @@ class ReadHARRequest(BaseModel):
 
 
 
-
 @app.post("/v1/debug/read-har")
 def read_har(data:ReadHARRequest):
 
+    return {
 
-    try:
+        "status":"success",
 
+        "url":data.url,
 
-        response = requests.get(
-            data.url,
-            timeout=30
-        )
+        "message":
+        "public_url received"
 
-
-        if response.status_code != 200:
-
-
-            raise Exception(
-                f"download failed:{response.status_code}"
-            )
-
-
-
-        content = response.content
-
-
-
-        return {
-
-            "status":"success",
-
-            "size":len(content),
-
-            "message":"HAR downloaded successfully"
-
-        }
-
-
-
-    except Exception as e:
-
-
-        raise HTTPException(
-
-            status_code=500,
-
-            detail=str(e)
-
-        )
+    }
