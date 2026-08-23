@@ -3,13 +3,14 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import uuid
+import requests
 
 from supabase import create_client
 
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.4.3",
+    version="0.4.4",
     description="TikTok Shop销量监控系统"
 )
 
@@ -85,6 +86,7 @@ def create_upload():
 
 
 
+
 # =========================
 # 上传HAR文件
 # =========================
@@ -94,7 +96,6 @@ async def upload_har(
     files:list[UploadFile]=File(...)
 ):
 
-
     if supabase is None:
 
         raise HTTPException(
@@ -103,9 +104,7 @@ async def upload_har(
         )
 
 
-
-    batch_id=str(uuid.uuid4())
-
+    batch_id = str(uuid.uuid4())
 
     uploaded=[]
 
@@ -114,7 +113,7 @@ async def upload_har(
     for file in files:
 
 
-        content=await file.read()
+        content = await file.read()
 
 
         path=(
@@ -133,11 +132,8 @@ async def upload_har(
 
 
         supabase.storage.from_(BUCKET_NAME).upload(
-
             path,
-
             content
-
         )
 
 
@@ -164,16 +160,17 @@ async def upload_har(
 
 
 
+
 # =========================
 # 获取文件路径
 # =========================
-
 
 class PathRequest(BaseModel):
 
     batch_id:str
 
     filename:str
+
 
 
 
@@ -196,9 +193,7 @@ def upload_path(data:PathRequest):
     )
 
 
-
     return {
-
 
         "status":"success",
 
@@ -215,7 +210,6 @@ def upload_path(data:PathRequest):
 # =========================
 # 获取Public URL
 # =========================
-
 
 class PublicURLRequest(BaseModel):
 
@@ -245,7 +239,6 @@ def public_url(data:PublicURLRequest):
     )
 
 
-
     url=(
 
         SUPABASE_URL
@@ -269,9 +262,7 @@ def public_url(data:PublicURLRequest):
     )
 
 
-
     return {
-
 
         "status":"success",
 
@@ -284,14 +275,14 @@ def public_url(data:PublicURLRequest):
 
 
 
+
 # =========================
 # Debug读取HAR
 # =========================
 
-
 class ReadHARRequest(BaseModel):
 
-    path:str
+    url:str
 
 
 
@@ -300,36 +291,33 @@ class ReadHARRequest(BaseModel):
 def read_har(data:ReadHARRequest):
 
 
-    if supabase is None:
-
-        raise HTTPException(
-
-            status_code=500,
-
-            detail="Supabase not configured"
-
-        )
-
-
-
     try:
 
 
-        file_bytes = supabase.storage.from_(BUCKET_NAME).download(
-
-            data.path
-
+        response = requests.get(
+            data.url,
+            timeout=30
         )
+
+
+        if response.status_code != 200:
+
+
+            raise Exception(
+                f"download failed:{response.status_code}"
+            )
+
+
+
+        content = response.content
+
 
 
         return {
 
-
             "status":"success",
 
-            "filename":data.path.split("/")[-1],
-
-            "size":len(file_bytes),
+            "size":len(content),
 
             "message":"HAR downloaded successfully"
 
