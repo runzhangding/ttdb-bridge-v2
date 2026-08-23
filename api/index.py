@@ -8,7 +8,7 @@ import requests
 
 app = FastAPI(
     title="天天爆单 Bridge",
-    version="0.4.3",
+    version="0.4.4",
     description="TikTok Shop销量监控系统",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -41,13 +41,13 @@ def home():
 
     return {
 
-        "status":"ok",
+        "status": "ok",
 
-        "service":"天天爆单 Bridge",
+        "service": "天天爆单 Bridge",
 
-        "version":"0.4.3",
+        "version": "0.4.4",
 
-        "docs":"/docs"
+        "docs": "/docs"
 
     }
 
@@ -62,7 +62,7 @@ def health():
 
     return {
 
-        "status":"healthy"
+        "status": "healthy"
 
     }
 
@@ -77,19 +77,13 @@ def debug_env():
 
     return {
 
-        "supabase_url":
+        "supabase_url": SUPABASE_URL,
 
-            SUPABASE_URL,
+        "service_key_exists": bool(
+            SUPABASE_SERVICE_KEY
+        ),
 
-
-        "service_key_exists":
-
-            bool(SUPABASE_SERVICE_KEY),
-
-
-        "bucket":
-
-            BUCKET_NAME
+        "bucket": BUCKET_NAME
 
     }
 
@@ -107,9 +101,9 @@ def create_upload():
 
     return {
 
-        "status":"success",
+        "status": "success",
 
-        "batch_id":batch_id,
+        "batch_id": batch_id,
 
         "created_at":
             datetime.utcnow().isoformat()
@@ -124,10 +118,10 @@ def create_upload():
 
 @app.post("/v1/upload/har")
 async def upload_har(
-    files:list[UploadFile]=File(...)
+    files: list[UploadFile] = File(...)
 ):
 
-    result=[]
+    result = []
 
 
     for file in files:
@@ -137,26 +131,20 @@ async def upload_har(
 
         result.append({
 
-            "filename":
+            "filename": file.filename,
 
-                file.filename,
-
-
-            "size":
-
-                len(content)
+            "size": len(content)
 
         })
 
 
     return {
 
-        "status":"success",
+        "status": "success",
 
-        "files":result
+        "files": result
 
     }
-
 
 
 
@@ -166,137 +154,57 @@ async def upload_har(
 
 class ReadHARRequest(BaseModel):
 
-    url:str
+    url: str
 
 
 
 @app.post("/v1/debug/read-har")
 def read_har(
-    data:ReadHARRequest
+    data: ReadHARRequest
 ):
+
+    session = None
 
     try:
 
-
-        if not SUPABASE_URL:
-
-            raise Exception(
-                "SUPABASE_URL missing"
-            )
+        session = requests.Session()
 
 
-        if not SUPABASE_SERVICE_KEY:
+        response = session.get(
 
-            raise Exception(
-                "SUPABASE_SERVICE_KEY missing"
-            )
+            data.url,
 
+            timeout=(10, 30),
 
-        url = data.url
+            headers={
 
+                "User-Agent":
+                    "Mozilla/5.0"
 
-        if "/har-files/" not in url:
-
-            raise Exception(
-                "Invalid HAR public url"
-            )
-
-
-        # 提取文件路径
-
-        path = url.split(
-            "/har-files/"
-        )[1]
-
-
-        # Supabase Storage REST地址
-
-        storage_url = (
-
-            SUPABASE_URL
-
-            +
-
-            "/storage/v1/object/"
-
-            +
-
-            BUCKET_NAME
-
-            +
-
-            "/"
-
-            +
-
-            path
+            }
 
         )
-
-
-        headers = {
-
-            "Authorization":
-
-                "Bearer "
-
-                +
-
-                SUPABASE_SERVICE_KEY,
-
-
-            "apikey":
-
-                SUPABASE_SERVICE_KEY
-
-        }
-
-
-
-        response = requests.get(
-
-            storage_url,
-
-            headers=headers,
-
-            timeout=30
-
-        )
-
-
-        if response.status_code != 200:
-
-            raise Exception(
-
-                response.text
-
-            )
 
 
         return {
 
+            "status": "success",
 
-            "status":"success",
-
+            "http_status":
+                response.status_code,
 
             "content_length":
-
                 len(response.content),
 
-
             "content_type":
-
                 response.headers.get(
                     "content-type"
                 ),
 
-
             "message":
-
                 "HAR download success"
 
         }
-
 
 
     except Exception as e:
@@ -304,17 +212,19 @@ def read_har(
 
         return {
 
-
-            "status":"error",
-
+            "status": "error",
 
             "detail":
-
                 str(e)
 
         }
 
 
+    finally:
+
+        if session:
+
+            session.close()
 
 
 
@@ -324,21 +234,24 @@ def read_har(
 
 class PublicURLRequest(BaseModel):
 
-    path:str
+    path: str
 
 
 
 @app.post("/v1/upload/public-url")
 def public_url(
-    data:PublicURLRequest
+    data: PublicURLRequest
 ):
 
 
     if not SUPABASE_URL:
 
         raise HTTPException(
-            500,
-            "SUPABASE_URL missing"
+
+            status_code=500,
+
+            detail="SUPABASE_URL missing"
+
         )
 
 
@@ -346,21 +259,13 @@ def public_url(
 
         SUPABASE_URL
 
-        +
+        + "/storage/v1/object/public/"
 
-        "/storage/v1/object/public/"
+        + BUCKET_NAME
 
-        +
+        + "/"
 
-        BUCKET_NAME
-
-        +
-
-        "/"
-
-        +
-
-        data.path
+        + data.path
 
     )
 
@@ -368,11 +273,8 @@ def public_url(
     return {
 
 
-        "status":"success",
+        "status": "success",
 
-
-        "public_url":
-
-            url
+        "public_url": url
 
     }
