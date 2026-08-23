@@ -3,8 +3,6 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import uuid
-import requests
-import json
 
 from supabase import create_client
 
@@ -17,7 +15,7 @@ app = FastAPI(
 
 
 # =========================
-# Supabase 配置
+# Supabase配置
 # =========================
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -28,11 +26,14 @@ BUCKET_NAME = "har-files"
 
 supabase = None
 
+
 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+
     supabase = create_client(
         SUPABASE_URL,
         SUPABASE_SERVICE_KEY
     )
+
 
 
 # =========================
@@ -58,6 +59,7 @@ def health():
 
 
 
+
 # =========================
 # 创建上传批次
 # =========================
@@ -66,6 +68,7 @@ def health():
 def create_upload():
 
     batch_id = str(uuid.uuid4())
+
 
     return {
 
@@ -81,6 +84,7 @@ def create_upload():
 
 
 
+
 # =========================
 # 上传HAR文件
 # =========================
@@ -90,6 +94,7 @@ async def upload_har(
     files:list[UploadFile]=File(...)
 ):
 
+
     if supabase is None:
 
         raise HTTPException(
@@ -98,9 +103,12 @@ async def upload_har(
         )
 
 
+
     batch_id=str(uuid.uuid4())
 
+
     uploaded=[]
+
 
 
     for file in files:
@@ -125,8 +133,11 @@ async def upload_har(
 
 
         supabase.storage.from_(BUCKET_NAME).upload(
+
             path,
+
             content
+
         )
 
 
@@ -137,6 +148,7 @@ async def upload_har(
             "path":path
 
         })
+
 
 
     return {
@@ -151,9 +163,11 @@ async def upload_har(
 
 
 
+
 # =========================
 # 获取文件路径
 # =========================
+
 
 class PathRequest(BaseModel):
 
@@ -182,7 +196,9 @@ def upload_path(data:PathRequest):
     )
 
 
+
     return {
+
 
         "status":"success",
 
@@ -195,15 +211,18 @@ def upload_path(data:PathRequest):
 
 
 
+
 # =========================
-# 获取public_url
+# 获取Public URL
 # =========================
+
 
 class PublicURLRequest(BaseModel):
 
     batch_id:str
 
     filename:str
+
 
 
 
@@ -224,6 +243,7 @@ def public_url(data:PublicURLRequest):
         +data.filename
 
     )
+
 
 
     url=(
@@ -249,7 +269,9 @@ def public_url(data:PublicURLRequest):
     )
 
 
+
     return {
+
 
         "status":"success",
 
@@ -266,9 +288,10 @@ def public_url(data:PublicURLRequest):
 # Debug读取HAR
 # =========================
 
+
 class ReadHARRequest(BaseModel):
 
-    url:str
+    path:str
 
 
 
@@ -277,60 +300,38 @@ class ReadHARRequest(BaseModel):
 def read_har(data:ReadHARRequest):
 
 
+    if supabase is None:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail="Supabase not configured"
+
+        )
+
+
+
     try:
 
 
-        response=requests.get(
+        file_bytes = supabase.storage.from_(BUCKET_NAME).download(
 
-            data.url,
-
-            timeout=30
+            data.path
 
         )
-
-
-        if response.status_code != 200:
-
-
-            raise HTTPException(
-
-                status_code=500,
-
-                detail=f"download failed:{response.status_code}"
-
-            )
-
-
-
-        har_data=json.loads(
-
-            response.text
-
-        )
-
-
-
-        entries=(
-
-            har_data
-
-            .get("log",{})
-
-            .get("entries",[])
-
-        )
-
 
 
         return {
 
+
             "status":"success",
 
-            "url":data.url,
+            "filename":data.path.split("/")[-1],
 
-            "entries_count":len(entries),
+            "size":len(file_bytes),
 
-            "message":"HAR read success"
+            "message":"HAR downloaded successfully"
 
         }
 
