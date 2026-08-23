@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from typing import List
 
-
 app = FastAPI(
     title="天天爆单 Bridge",
     version="0.1.0",
@@ -13,7 +12,7 @@ app = FastAPI(
 def home():
     return {
         "status": "ok",
-        "message": "天天爆单 Bridge running"
+        "message": "天天爆单 Bridge V2 running"
     }
 
 
@@ -26,9 +25,8 @@ def health():
 
 @app.post("/v1/batch/commit-files")
 async def commit_files(
-    files: List[UploadFile] = File(...)
+    files: list[UploadFile] = File(...)
 ):
-
     result = []
 
     for file in files:
@@ -38,7 +36,6 @@ async def commit_files(
             "filename": file.filename,
             "size": len(content)
         })
-
 
     return {
         "status": "success",
