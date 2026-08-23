@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
+
 
 app = FastAPI(
     title="天天爆单 Bridge",
@@ -19,4 +20,17 @@ def home():
 def health():
     return {
         "status": "healthy"
+    }
+
+
+@app.post("/upload")
+async def upload_har(file: UploadFile = File(...)):
+
+    content = await file.read()
+
+    return {
+        "status": "success",
+        "filename": file.filename,
+        "size": len(content),
+        "message": "HAR文件接收成功"
     }
