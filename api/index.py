@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -466,6 +466,65 @@ def parse_har(
 
             "status":
                 "error",
+
+            "detail":
+                str(e)
+
+        }
+# =========================
+# HAR文件直接上传测试
+# =========================
+
+@app.post("/v1/debug/upload-har")
+async def upload_har(
+    file: UploadFile = File(...)
+):
+
+    try:
+
+        import json
+
+
+        content = await file.read()
+
+
+        har = json.loads(
+            content.decode("utf-8")
+        )
+
+
+        entries = (
+            har
+            .get("log", {})
+            .get("entries", [])
+        )
+
+
+        return {
+
+            "status":"success",
+
+            "filename":
+                file.filename,
+
+            "size":
+                len(content),
+
+            "entries":
+                len(entries),
+
+            "message":
+                "HAR解析成功"
+
+        }
+
+
+    except Exception as e:
+
+
+        return {
+
+            "status":"error",
 
             "detail":
                 str(e)
